@@ -589,7 +589,7 @@
   function directJoin(log) {
     if (log && log.directLink && /^roblox:\/\//i.test(log.directLink)) return log.directLink;
     if (log && log.placeId && log.jobId) {
-      return 'roblox://experiences/start?placeId=' + encodeURIComponent(log.placeId)
+      return 'https://www.roblox.com/games/start?placeId=' + encodeURIComponent(log.placeId)
         + '&gameInstanceId=' + encodeURIComponent(log.jobId);
     }
     return '';
@@ -601,9 +601,8 @@
       return 'intent://experiences/start?placeId=' + place + '&gameInstanceId=' + job
         + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.roblox.client;end';
     }
-    // The https://www.roblox.com/games/start URL often ignores gameInstanceId
-    // and drops the player into a random server. The protocol link is the
-    // reliable way to target an exact JobId on desktop and iOS.
+    // Use the Roblox web launcher for desktop. It is more reliable than the
+    // roblox:// protocol when the browser does not have a registered handler.
     return directJoin(log);
   }
   function autoJoinWindowKey() {
@@ -978,7 +977,7 @@
         const pet = state.top.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!pet) return;
         const link = joinTarget(pet);
-        if (link) window.location.href = link;
+        if (link) window.open(link, '_blank', 'noopener');
       });
     });
   }
@@ -1021,7 +1020,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.location.href = link;
+        if (link) window.open(link, '_blank', 'noopener');
       });
     });
     $('logsCount').textContent = state.logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
@@ -1063,7 +1062,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.location.href = link;
+        if (link) window.open(link, '_blank', 'noopener');
       });
     });
   }
