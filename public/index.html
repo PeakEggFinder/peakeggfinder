@@ -545,6 +545,9 @@
   function mutationText(log) {
     return hasMutation(log) ? String(log.mutation) : '—';
   }
+  function isStolen(log) {
+    return num(log && log.stolenAt) > 0;
+  }
   function expandMoneyShorthand(value) {
     const raw = String(value || '').trim().replace(/,/g, '');
     const match = raw.match(/^(\d+(?:\.\d+)?)\s*([kmbt])$/i);
@@ -1036,8 +1039,9 @@
       if (hasMutation(pet)) sub.push(pet.mutation);
       if (pet.kg) sub.push(fmtKg(pet.kg));
       sub.push(timeAgo(pet.at));
-      const canJoin = !!(joinTarget(pet));
-      const joinLabel = canJoin ? 'Join' : 'Locked';
+      const stolen = isStolen(pet);
+      const canJoin = !stolen && !!(joinTarget(pet));
+      const joinLabel = stolen ? 'Stolen' : (canJoin ? 'Join' : 'Locked');
       return '<div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between gap-3 hover:border-slate-700 transition">'
         + '<div class="flex items-center space-x-3 min-w-0">'
         + '<span class="w-6 h-6 shrink-0 flex items-center justify-center font-mono text-xs font-bold rounded-lg ' + rankStyle + '">#' + rank + '</span>'
@@ -1050,9 +1054,11 @@
         + '</div></div>'
         + '<button type="button" data-join="' + esc(pet.id) + '"' + (canJoin ? '' : ' disabled')
         + ' class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition '
-        + (canJoin
-          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
-          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + (stolen
+          ? 'bg-red-500/15 text-red-300 border border-red-500/30 cursor-not-allowed'
+          : (canJoin
+            ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+            : 'bg-slate-800 text-slate-500 cursor-not-allowed'))
         + '">' + joinLabel + '</button>'
         + '</div>';
     }).join('');
@@ -1087,8 +1093,9 @@
       const extra = [];
       if (log.kg) extra.push(fmtKg(log.kg));
       if (log.halloween && log.scale) extra.push('scale x' + num(log.scale).toFixed(2));
-      const canJoin = !!(joinTarget(log));
-      const joinLabel = canJoin ? 'Join' : 'Locked';
+      const stolen = isStolen(log);
+      const canJoin = !stolen && !!(joinTarget(log));
+      const joinLabel = stolen ? 'Stolen' : (canJoin ? 'Join' : 'Locked');
       return '<tr class="hover:bg-slate-800/30 transition">'
         + '<td class="py-3 px-3 font-semibold text-white">'
         + '<div class="flex items-center"><i data-lucide="egg" class="w-4 h-4 text-brand-accent mr-2 shrink-0"></i><span class="truncate text-base">' + esc(log.pet || 'Unknown') + '</span></div>'
@@ -1101,9 +1108,11 @@
         + '<td class="py-3 px-3 text-right">'
         + '<button type="button" data-join="' + esc(log.id) + '"' + (canJoin ? '' : ' disabled')
         + ' class="px-3 py-1.5 rounded-lg text-xs font-bold transition '
-        + (canJoin
-          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
-          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + (stolen
+          ? 'bg-red-500/15 text-red-300 border border-red-500/30 cursor-not-allowed'
+          : (canJoin
+            ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+            : 'bg-slate-800 text-slate-500 cursor-not-allowed'))
         + '">' + joinLabel + '</button>'
         + '</td>'
         + '</tr>';
@@ -1133,8 +1142,9 @@
       return;
     }
     body.innerHTML = state.logs.slice(0, 50).map((log) => {
-      const canJoin = !!(joinTarget(log));
-      const joinLabel = canJoin ? 'Join' : 'Locked';
+      const stolen = isStolen(log);
+      const canJoin = !stolen && !!(joinTarget(log));
+      const joinLabel = stolen ? 'Stolen' : (canJoin ? 'Join' : 'Locked');
       return '<tr class="hover:bg-slate-800/30 transition">'
         + '<td class="py-3 px-3 font-semibold text-white flex items-center"><i data-lucide="egg" class="w-4 h-4 text-brand-accent mr-2"></i><span class="text-base">' + esc(log.pet || 'Unknown') + '</span></td>'
         + '<td class="py-3 px-3"><span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded ' + rarityClass(log.rarity) + '">' + esc(log.rarity || '?') + '</span></td>'
@@ -1144,9 +1154,11 @@
         + '<td class="py-3 px-3 text-right">'
         + '<button type="button" data-join="' + esc(log.id) + '"' + (canJoin ? '' : ' disabled')
         + ' class="px-3 py-1.5 rounded-lg text-xs font-bold transition '
-        + (canJoin
-          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
-          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + (stolen
+          ? 'bg-red-500/15 text-red-300 border border-red-500/30 cursor-not-allowed'
+          : (canJoin
+            ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+            : 'bg-slate-800 text-slate-500 cursor-not-allowed'))
         + '">' + joinLabel + '</button>'
         + '</td>'
         + '</tr>';
