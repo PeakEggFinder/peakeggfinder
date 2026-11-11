@@ -16,29 +16,20 @@ Bots -> Cloudflare API Worker -> D1
 
 ## GitHub Pages deployment
 
-The site is ready for GitHub Pages:
+The site is live on GitHub Pages:
 
 - `.github/workflows/pages.yml` deploys the `public` folder on every push to `main`.
-- In GitHub: **Settings > Pages > Build and deployment > Source: GitHub Actions**.
-- All page links are relative, so the site works from a project URL such as
-  `https://YOUR_USERNAME.github.io/peakeggfinder/`.
+- GitHub Pages is enabled with **Source: GitHub Actions**.
+- Live site: `https://peakeggfinder.github.io/peakeggfinder/`
+- All page links are relative, so the project URL works correctly.
 
-Create the repository and push:
+After editing, deploy with:
 
 ```cmd
 cd /d "C:\Users\Fiz\Documents\Default Project\egg-dashboard-netlify"
-git init
 git add .
-git commit -m "Egg Finder dashboard"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/peakeggfinder.git
-git push -u origin main
-```
-
-If the GitHub CLI is logged in:
-
-```cmd
-gh repo create peakeggfinder --public --source . --remote origin --push
+git commit -m "Update dashboard"
+git push
 ```
 
 There is no build step and no deploy credit limit.
