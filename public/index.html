@@ -235,13 +235,27 @@
           <button id="applyBtn" class="px-4 py-2 bg-brand-accent text-slate-950 font-bold text-xs rounded-xl hover:bg-yellow-400 transition">Apply</button>
           <button id="resetBtn" class="px-3 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition">Reset</button>
         </div>
+        <div class="flex items-center gap-3 mb-4 text-xs">
+          <label class="flex items-center gap-2 text-slate-400 font-mono">SORT BY
+            <select id="sortBy" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent">
+              <option value="recent">Most Recent</option>
+              <option value="rarity">Rarity</option>
+              <option value="earn">Highest Value</option>
+              <option value="mutated">Mutated</option>
+            </select>
+          </label>
+          <label class="flex items-center gap-2 text-slate-400 cursor-pointer">
+            <input id="mutatedOnly" type="checkbox" class="accent-brand-accent w-4 h-4" /> Mutated only
+          </label>
+        </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse min-w-[920px]">
+          <table class="w-full text-left border-collapse min-w-[1040px]">
             <thead>
               <tr class="text-[11px] font-mono text-slate-400 border-b border-slate-800 uppercase tracking-wider">
                 <th class="pb-3 px-3">Pet Name</th>
                 <th class="pb-3 px-3">Rarity</th>
+                <th class="pb-3 px-3">Mutation</th>
                 <th class="pb-3 px-3">Money/s</th>
                 <th class="pb-3 px-3 text-right">Time Ago</th>
                 <th class="pb-3 px-3 text-right">Join</th>
@@ -315,6 +329,7 @@
               <tr class="text-[11px] font-mono text-slate-400 border-b border-slate-800 uppercase tracking-wider">
                 <th class="pb-3 px-3">Pet Name</th>
                 <th class="pb-3 px-3">Rarity</th>
+                <th class="pb-3 px-3">Mutation</th>
                 <th class="pb-3 px-3">Money/s</th>
                 <th class="pb-3 px-3 text-right">Detected</th>
                 <th class="pb-3 px-3 text-right">Join</th>
@@ -476,7 +491,7 @@
     lastAutoJoin: null,
     autoJoinWindow: 0,
     autoJoinedOnce: false,
-    filters: { q: '', minEarn: '' },
+    filters: { q: '', minEarn: '', sort: 'recent', mutated: false },
     alertApp: null,
     alertRef: null,
     alertsSeen: new Set(),
@@ -490,12 +505,16 @@
       state.filters = {
         q: String(saved.q || ''),
         minEarn: String(saved.minEarn || ''),
+        sort: ['recent', 'rarity', 'earn', 'mutated'].includes(saved.sort) ? saved.sort : 'recent',
+        mutated: saved.mutated === true,
       };
     }
   } catch { /* ignore broken filter storage */ }
 
   if (state.filters.q) $('filterQ').value = state.filters.q;
   if (state.filters.minEarn) $('filterMin').value = state.filters.minEarn;
+  $('sortBy').value = state.filters.sort;
+  $('mutatedOnly').checked = state.filters.mutated === true;
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -518,6 +537,13 @@
     if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.00$/, '') + 'M kg';
     if (n >= 1e3) return (n / 1e3).toFixed(2).replace(/\.00$/, '') + 'K kg';
     return n.toFixed(n >= 100 ? 0 : 2) + ' kg';
+  }
+  function hasMutation(log) {
+    const m = String((log && log.mutation) || '').trim();
+    return m !== '' && m.toUpperCase() !== 'NONE';
+  }
+  function mutationText(log) {
+    return hasMutation(log) ? String(log.mutation) : '—';
   }
   function expandMoneyShorthand(value) {
     const raw = String(value || '').trim().replace(/,/g, '');
@@ -718,6 +744,8 @@
       const min = parseMoneyValue(state.filters.minEarn);
       if (min > 0) p.set('minEarn', String(Math.round(min)));
     }
+    if (state.filters.sort && state.filters.sort !== 'recent') p.set('sort', state.filters.sort);
+    if (state.filters.mutated) p.set('mutated', '1');
     for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
     return p.toString();
   }
@@ -731,8 +759,9 @@
     const q = String(state.filters.q || '').toLowerCase();
     const minEarn = parseMoneyValue(state.filters.minEarn);
     if (minEarn && num(log.earnPerSec) < minEarn) return false;
+    if (state.filters.mutated && !hasMutation(log)) return false;
     if (!q) return true;
-    return [log.pet, log.rarity, log.username, log.mutation, log.device]
+    return [log.pet, log.rarity, log.username, log.mutation, log.device, log.botId]
       .some((v) => String(v || '').toLowerCase().indexOf(q) !== -1);
   }
   function mergeAlertLogs(logs) {
@@ -1004,6 +1033,7 @@
             ? 'bg-amber-700/20 text-amber-600 border border-amber-700/40'
             : 'bg-slate-800 text-slate-400';
       const sub = [fmtMoney(pet.earnPerSec)];
+      if (hasMutation(pet)) sub.push(pet.mutation);
       if (pet.kg) sub.push(fmtKg(pet.kg));
       sub.push(timeAgo(pet.at));
       const canJoin = !!(joinTarget(pet));
@@ -1039,8 +1069,15 @@
   function renderLogs() {
     const body = $('logsBody');
     const logs = state.logs.filter((log) => matchesFilters(log));
+    const rank = (r) => ({ DIVINE: 10, ETERNAL: 9, SECRET: 8, COSMIC: 7, MYTHIC: 6, LEGENDARY: 5, EPIC: 4, RARE: 3, UNCOMMON: 2 }[String(r || '').toUpperCase()] || 1);
+    logs.sort((a, b) => {
+      if (state.filters.sort === 'earn') return num(b.earnPerSec) - num(a.earnPerSec);
+      if (state.filters.sort === 'rarity') return rank(b.rarity) - rank(a.rarity) || num(b.at) - num(a.at);
+      if (state.filters.sort === 'mutated') return (hasMutation(b) ? 1 : 0) - (hasMutation(a) ? 1 : 0) || num(b.at) - num(a.at);
+      return num(b.at) - num(a.at);
+    });
     if (!logs.length) {
-      body.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-slate-500">'
+      body.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500">'
         + (state.auth ? 'No pet logs match these filters yet.' : 'Log in with your token to load the live feed.')
         + '</td></tr>';
       $('logsCount').textContent = '';
@@ -1058,6 +1095,7 @@
         + (extra.length ? '<div class="text-xs text-slate-400 font-mono pl-6">' + esc(extra.join(' • ')) + '</div>' : '')
         + '</td>'
         + '<td class="py-3 px-3"><span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded ' + rarityClass(log.rarity) + '">' + esc(log.rarity || '?') + '</span></td>'
+        + '<td class="py-3 px-3"><span class="text-[11px] font-mono ' + (hasMutation(log) ? 'text-amber-300 font-bold' : 'text-slate-600') + '">' + esc(mutationText(log)) + '</span></td>'
         + '<td class="py-3 px-3 font-mono font-bold text-lg text-emerald-400">' + esc(fmtMoney(log.earnPerSec)) + '</td>'
         + '<td class="py-3 px-3 text-right font-mono text-slate-400 text-xs">' + esc(timeAgo(log.at)) + '<div class="text-[10px] text-slate-600">' + esc(utcStamp(log.at)) + '</div></td>'
         + '<td class="py-3 px-3 text-right">'
@@ -1089,7 +1127,7 @@
       ? 'Preview of the live feed. Auto Join handles the exact-server join.'
       : 'Log in with your token to load the live feed.';
     if (!hasData) {
-      body.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-slate-500">'
+      body.innerHTML = '<tr><td colspan="6" class="py-10 text-center text-slate-500">'
         + (state.auth ? 'No live feed data yet.' : 'Enter your token to view the live feed.')
         + '</td></tr>';
       return;
@@ -1100,6 +1138,7 @@
       return '<tr class="hover:bg-slate-800/30 transition">'
         + '<td class="py-3 px-3 font-semibold text-white flex items-center"><i data-lucide="egg" class="w-4 h-4 text-brand-accent mr-2"></i><span class="text-base">' + esc(log.pet || 'Unknown') + '</span></td>'
         + '<td class="py-3 px-3"><span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded ' + rarityClass(log.rarity) + '">' + esc(log.rarity || '?') + '</span></td>'
+        + '<td class="py-3 px-3"><span class="text-[11px] font-mono ' + (hasMutation(log) ? 'text-amber-300 font-bold' : 'text-slate-600') + '">' + esc(mutationText(log)) + '</span></td>'
         + '<td class="py-3 px-3 font-mono font-bold text-lg text-emerald-400">' + esc(fmtMoney(log.earnPerSec)) + '</td>'
         + '<td class="py-3 px-3 text-right font-mono text-slate-400 text-xs">' + esc(timeAgo(log.at)) + '</td>'
         + '<td class="py-3 px-3 text-right">'
@@ -1238,6 +1277,8 @@
   function setFiltersFromInputs() {
     state.filters.q = $('filterQ').value.trim();
     state.filters.minEarn = $('filterMin').value.trim();
+    state.filters.sort = $('sortBy').value;
+    state.filters.mutated = $('mutatedOnly').checked === true;
     localStorage.setItem(LS_FILTERS, JSON.stringify(state.filters));
   }
 
@@ -1347,6 +1388,8 @@
   $('resetBtn').addEventListener('click', () => {
     $('filterQ').value = '';
     $('filterMin').value = '';
+    $('sortBy').value = 'recent';
+    $('mutatedOnly').checked = false;
     setFiltersFromInputs();
     refreshAll();
   });
@@ -1366,6 +1409,8 @@
   $('filterQ').addEventListener('input', liveFilter);
   $('filterMin').addEventListener('input', liveFilter);
   bindMoneyInput($('filterMin'));
+  $('sortBy').addEventListener('change', () => { setFiltersFromInputs(); refreshAll(); });
+  $('mutatedOnly').addEventListener('change', () => { setFiltersFromInputs(); refreshAll(); });
   $('accountRefreshBtn').addEventListener('click', async () => {
     try {
       const auth = await api('/api/auth');
