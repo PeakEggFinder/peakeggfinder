@@ -479,6 +479,7 @@
     alertRef: null,
     alertsSeen: new Set(),
     alertLogs: [],
+    lastPointerKey: '',
   };
 
   try {
@@ -692,6 +693,7 @@
     state.autoJoinedOnce = false;
     state.alertLogs = [];
     state.alertsSeen = new Set();
+    state.lastPointerKey = '';
     state.token = '';
     state.sessionId = '';
     localStorage.removeItem(LS_TOKEN);
@@ -811,6 +813,27 @@
       state.alertApp = null;
     }
   }
+
+  async function checkLastAlertPointer() {
+    if (state.alertRef || !state.token || !state.auth) return;
+    try {
+      const pointerRes = await fetch(ALERTS_DB_URL + '/' + ALERTS_PATH + '/last.json', { cache: 'no-store' });
+      if (!pointerRes.ok) return;
+      const pointer = await pointerRes.json();
+      if (!pointer || !pointer.key || pointer.key === state.lastPointerKey) return;
+      const fullRes = await fetch(
+        ALERTS_DB_URL + '/' + ALERTS_PATH + '/' + encodeURIComponent(pointer.key) + '.json',
+        { cache: 'no-store' }
+      );
+      if (!fullRes.ok) return;
+      const full = await fullRes.json();
+      if (full && full.pet) {
+        state.lastPointerKey = pointer.key;
+        acceptAlert(full);
+      }
+    } catch { /* Firefox/Safari may block this; the normal poll still runs. */ }
+  }
+  setInterval(checkLastAlertPointer, 2000);
 
   async function loadSnapshot(windowStart) {
     try {
@@ -1250,6 +1273,7 @@
     state.autoJoinedOnce = false;
     state.alertLogs = [];
     state.alertsSeen = new Set();
+    state.lastPointerKey = '';
     localStorage.removeItem(LS_TOKEN);
     localStorage.removeItem(LS_SESSION);
     renderAll();
