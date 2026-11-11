@@ -231,7 +231,7 @@
             <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
             <input id="filterQ" placeholder="Search pet, rarity or bot" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent" />
           </div>
-          <input id="filterMin" type="number" min="0" step="1000000" placeholder="Min Money/s" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent lg:w-36" />
+          <input id="filterMin" type="text" inputmode="decimal" placeholder="Min Money/s (5b)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent lg:w-40" />
           <button id="applyBtn" class="px-4 py-2 bg-brand-accent text-slate-950 font-bold text-xs rounded-xl hover:bg-yellow-400 transition">Apply</button>
           <button id="resetBtn" class="px-3 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition">Reset</button>
         </div>
@@ -463,6 +463,7 @@
     auth: null,
     logs: [],
     top: [],
+    topAllTime: false,
     stats: {},
     total: 0,
     health: {},
@@ -685,6 +686,7 @@
     state.auth = null;
     state.logs = [];
     state.top = [];
+    state.topAllTime = false;
     state.stats = {};
     state.total = 0;
     state.autojoin = null;
@@ -710,7 +712,10 @@
   function filterParams(extra = {}) {
     const p = new URLSearchParams();
     if (state.filters.q) p.set('q', state.filters.q);
-    if (state.filters.minEarn) p.set('minEarn', state.filters.minEarn);
+    if (state.filters.minEarn) {
+      const min = parseMoneyValue(state.filters.minEarn);
+      if (min > 0) p.set('minEarn', String(Math.round(min)));
+    }
     for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
     return p.toString();
   }
@@ -762,6 +767,7 @@
       }
     }
     if (at >= spawnWindowStart()) {
+      state.topAllTime = false;
       state.top = [log]
         .concat(state.top.filter((p) => String(p.id) !== id))
         .sort((a, b) => num(b.earnPerSec) - num(a.earnPerSec))
@@ -886,6 +892,14 @@
       state.total = snap.total != null ? num(snap.total, state.logs.length) : state.logs.length;
       state.stats = snap.stats || {};
       state.top = Array.isArray(snap.top) ? snap.top : [];
+      state.topAllTime = false;
+      if (!state.top.length && state.auth) {
+        try {
+          const best = await api('/api/pets?sort=earn&limit=10');
+          state.top = Array.isArray(best.logs) ? best.logs : [];
+          state.topAllTime = state.top.length > 0;
+        } catch { /* keep the empty state */ }
+      }
       state.health = {
         botStatus: snap.botStatus,
         botStatusUpdatedAt: snap.botStatusUpdatedAt,
@@ -958,9 +972,11 @@
 
   function renderTop10() {
     const box = $('top10List');
-    $('spawnWindow').textContent = state.spawnStart ? spawnWindowLabel(state.spawnStart) : '';
+    $('spawnWindow').textContent = state.topAllTime
+      ? 'All-time best'
+      : (state.spawnStart ? spawnWindowLabel(state.spawnStart) : '');
     if (!state.top.length) {
-      box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged in this 5-minute spawn yet.</div>';
+      box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged yet.</div>';
       return;
     }
     box.innerHTML = state.top.map((pet, i) => {
@@ -1007,14 +1023,15 @@
 
   function renderLogs() {
     const body = $('logsBody');
-    if (!state.logs.length) {
+    const logs = state.logs.filter((log) => matchesFilters(log));
+    if (!logs.length) {
       body.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-slate-500">'
         + (state.auth ? 'No pet logs match these filters yet.' : 'Log in with your token to load the live feed.')
         + '</td></tr>';
       $('logsCount').textContent = '';
       return;
     }
-    body.innerHTML = state.logs.map((log) => {
+    body.innerHTML = logs.map((log) => {
       const extra = [];
       if (log.kg) extra.push(fmtKg(log.kg));
       if (log.halloween && log.scale) extra.push('scale x' + num(log.scale).toFixed(2));
@@ -1046,7 +1063,7 @@
         if (link) window.location.href = link;
       });
     });
-    $('logsCount').textContent = state.logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
+    $('logsCount').textContent = logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
   }
 
   function renderPreview() {
@@ -1265,6 +1282,7 @@
     state.auth = null;
     state.logs = [];
     state.top = [];
+    state.topAllTime = false;
     state.stats = {};
     state.total = 0;
     state.autojoin = null;
@@ -1321,6 +1339,17 @@
       if (e.key === 'Enter') { setFiltersFromInputs(); refreshAll(); }
     });
   }
+  let filterDebounce = 0;
+  function liveFilter() {
+    setFiltersFromInputs();
+    renderLogs();
+    renderPreview();
+    clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(() => refreshAll(), 350);
+  }
+  $('filterQ').addEventListener('input', liveFilter);
+  $('filterMin').addEventListener('input', liveFilter);
+  bindMoneyInput($('filterMin'));
   $('accountRefreshBtn').addEventListener('click', async () => {
     try {
       const auth = await api('/api/auth');
