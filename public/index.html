@@ -464,6 +464,7 @@
     logs: [],
     top: [],
     topAllTime: false,
+    topMixed: false,
     stats: {},
     total: 0,
     health: {},
@@ -687,6 +688,7 @@
     state.logs = [];
     state.top = [];
     state.topAllTime = false;
+    state.topMixed = false;
     state.stats = {};
     state.total = 0;
     state.autojoin = null;
@@ -768,6 +770,7 @@
     }
     if (at >= spawnWindowStart()) {
       state.topAllTime = false;
+      state.topMixed = false;
       state.top = [log]
         .concat(state.top.filter((p) => String(p.id) !== id))
         .sort((a, b) => num(b.earnPerSec) - num(a.earnPerSec))
@@ -893,11 +896,23 @@
       state.stats = snap.stats || {};
       state.top = Array.isArray(snap.top) ? snap.top : [];
       state.topAllTime = false;
-      if (!state.top.length && state.auth) {
+      state.topMixed = false;
+      if (state.auth && state.top.length < 10) {
         try {
+          const before = state.top.length;
           const best = await api('/api/pets?sort=earn&limit=10');
-          state.top = Array.isArray(best.logs) ? best.logs : [];
-          state.topAllTime = state.top.length > 0;
+          const ids = new Set(state.top.map((p) => String(p.id)));
+          for (const pet of (best.logs || [])) {
+            if (state.top.length >= 10) break;
+            if (!ids.has(String(pet.id))) {
+              ids.add(String(pet.id));
+              state.top.push(pet);
+            }
+          }
+          if (state.top.length > before) {
+            if (before > 0) state.topMixed = true;
+            else state.topAllTime = true;
+          }
         } catch { /* keep the empty state */ }
       }
       state.health = {
@@ -974,7 +989,7 @@
     const box = $('top10List');
     $('spawnWindow').textContent = state.topAllTime
       ? 'All-time best'
-      : (state.spawnStart ? spawnWindowLabel(state.spawnStart) : '');
+      : (state.topMixed ? 'Current + all-time best' : (state.spawnStart ? spawnWindowLabel(state.spawnStart) : ''));
     if (!state.top.length) {
       box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged yet.</div>';
       return;
@@ -1283,6 +1298,7 @@
     state.logs = [];
     state.top = [];
     state.topAllTime = false;
+    state.topMixed = false;
     state.stats = {};
     state.total = 0;
     state.autojoin = null;
