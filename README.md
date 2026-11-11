@@ -1,12 +1,12 @@
-# Peak Egg Finder v2 - static dashboard
+# Egg Finder - static dashboard
 
-Static dashboard + admin panel for the Cloudflare Worker + D1 pet-log backend.
+Static dashboard, admin panel and bot tracker for the Egg Finder backend.
 
 ```
-Bots -> Cloudflare Worker -> D1
+Bots -> Cloudflare API Worker -> D1
                  ^
                  | direct HTTPS API
-          Static dashboard
+             GitHub Pages
 ```
 
 - The browser calls `https://egg-pet-logs.egg-pet-logs.workers.dev/api/*` directly.
@@ -14,42 +14,34 @@ Bots -> Cloudflare Worker -> D1
 - Client/admin tokens, expiry, Auto Join settings and Bot Status live in Cloudflare D1.
 - Auto Join launches the exact server; full servers stay clickable.
 
-## Current deployment (free, no Netlify credits)
-
-Cloudflare Workers static assets:
-
-```cmd
-cd /d "C:\Users\Fiz\Documents\Default Project\egg-dashboard-netlify"
-npx wrangler deploy
-```
-
-Live at:
-
-```text
-https://peakeggfinderv2.egg-pet-logs.workers.dev
-```
-
-Deploy again after any HTML change. There is no build step and no per-deploy credit limit.
-
-## GitHub Pages
+## GitHub Pages deployment
 
 The site is ready for GitHub Pages:
 
 - `.github/workflows/pages.yml` deploys the `public` folder on every push to `main`.
 - In GitHub: **Settings > Pages > Build and deployment > Source: GitHub Actions**.
-- Create the repository, push this folder, and the workflow publishes the site.
+- All page links are relative, so the site works from a project URL such as
+  `https://YOUR_USERNAME.github.io/peakeggfinder/`.
+
+Create the repository and push:
 
 ```cmd
+cd /d "C:\Users\Fiz\Documents\Default Project\egg-dashboard-netlify"
 git init
 git add .
 git commit -m "Egg Finder dashboard"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+git remote add origin https://github.com/YOUR_USERNAME/peakeggfinder.git
 git push -u origin main
 ```
 
-All page links are relative, so the site also works from a project URL such as
-`https://YOUR_USERNAME.github.io/YOUR_REPO/`.
+If the GitHub CLI is logged in:
+
+```cmd
+gh repo create peakeggfinder --public --source . --remote origin --push
+```
+
+There is no build step and no deploy credit limit.
 
 ## API URL
 
