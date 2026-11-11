@@ -60,7 +60,7 @@
           <span id="status" class="muted">Loading…</span>
         </div>
         <div class="row">
-          <label>Place <input id="placeId" style="width:160px" spellcheck="false" /></label>
+          <label>Place <input id="placeId" style="width:160px" placeholder="All places" spellcheck="false" /></label>
           <label>Disconnect after <input id="disconnectSec" type="number" min="15" step="5" style="width:78px" /> s</label>
         </div>
       </div>
@@ -87,7 +87,7 @@
   // Hardcoded tracker (same database the bots write to). Public read only.
   const TRACKER_DB_URL = 'https://robloxtracker-90ba3-default-rtdb.asia-southeast1.firebasedatabase.app';
   const NODE_PATH = 'bots';
-  const DEFAULT_PLACE = '80978566387592';
+  const DEFAULT_PLACE = '';
   const LEGACY_PLACE = '107778070777162';
   const DEFAULT_DISCONNECT_SEC = 180;
   const POLL_MS = 30000;
@@ -160,17 +160,29 @@
 
   async function load() {
     if (loading) return;
-    const place = $('placeId').value.trim() || DEFAULT_PLACE;
+    const place = $('placeId').value.trim();
     loading = true;
     try {
-      const url = TRACKER_DB_URL + '/' + NODE_PATH.split('/').map(encodeURIComponent).join('/')
-        + '/' + encodeURIComponent(place) + '.json';
+      const url = TRACKER_DB_URL + '/' + NODE_PATH.split('/').map(encodeURIComponent).join('/') + '.json';
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status + (res.status === 401 || res.status === 403 ? ' (check tracker rules)' : ''));
       const data = await res.json();
-      state = (data && typeof data === 'object') ? data : {};
+      const merged = {};
+      for (const [currentPlace, bots] of Object.entries(data && typeof data === 'object' ? data : {})) {
+        if (place && currentPlace !== place) continue;
+        for (const [botId, beat] of Object.entries(bots && typeof bots === 'object' ? bots : {})) {
+          if (!beat || typeof beat !== 'object') continue;
+          const entry = Object.assign({ botId, placeId: currentPlace }, beat);
+          const old = merged[botId];
+          if (!old || (Number(entry.at || entry.clientAt) || 0) > (Number(old.at || old.clientAt) || 0)) {
+            merged[botId] = entry;
+          }
+        }
+      }
+      state = merged;
       $('status').textContent = 'Updated ' + new Date().toLocaleTimeString()
-        + ' (UTC ' + new Date().toISOString().slice(11, 19) + 'Z)';
+        + ' (UTC ' + new Date().toISOString().slice(11, 19) + 'Z)'
+        + (place ? ' - place ' + place : ' - all places');
       render();
     } catch (e) {
       $('status').textContent = 'Error: ' + (e && e.message ? e.message : e);
@@ -181,14 +193,16 @@
 
   const savedPlace = localStorage.getItem(LS.place);
   if (!savedPlace || savedPlace === LEGACY_PLACE) {
-    localStorage.setItem(LS.place, DEFAULT_PLACE);
-    $('placeId').value = DEFAULT_PLACE;
+    localStorage.removeItem(LS.place);
+    $('placeId').value = '';
   } else {
     $('placeId').value = savedPlace;
   }
   $('disconnectSec').value = localStorage.getItem(LS.disc) || String(DEFAULT_DISCONNECT_SEC);
   $('placeId').addEventListener('change', () => {
-    localStorage.setItem(LS.place, $('placeId').value.trim());
+    const value = $('placeId').value.trim();
+    if (value) localStorage.setItem(LS.place, value);
+    else localStorage.removeItem(LS.place);
     load();
   });
   $('disconnectSec').addEventListener('change', () => {
