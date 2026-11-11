@@ -977,7 +977,7 @@
         const pet = state.top.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!pet) return;
         const link = joinTarget(pet);
-        if (link) window.open(link, '_blank', 'noopener');
+        if (link) window.location.href = link;
       });
     });
   }
@@ -1020,7 +1020,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.open(link, '_blank', 'noopener');
+        if (link) window.location.href = link;
       });
     });
     $('logsCount').textContent = state.logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
@@ -1062,7 +1062,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.open(link, '_blank', 'noopener');
+        if (link) window.location.href = link;
       });
     });
   }
