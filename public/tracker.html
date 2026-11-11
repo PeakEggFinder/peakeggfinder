@@ -87,7 +87,8 @@
   // Hardcoded tracker (same database the bots write to). Public read only.
   const TRACKER_DB_URL = 'https://robloxtracker-90ba3-default-rtdb.asia-southeast1.firebasedatabase.app';
   const NODE_PATH = 'bots';
-  const DEFAULT_PLACE = '107778070777162';
+  const DEFAULT_PLACE = '80978566387592';
+  const LEGACY_PLACE = '107778070777162';
   const DEFAULT_DISCONNECT_SEC = 180;
   const POLL_MS = 30000;
 
@@ -178,7 +179,13 @@
     }
   }
 
-  $('placeId').value = localStorage.getItem(LS.place) || DEFAULT_PLACE;
+  const savedPlace = localStorage.getItem(LS.place);
+  if (!savedPlace || savedPlace === LEGACY_PLACE) {
+    localStorage.setItem(LS.place, DEFAULT_PLACE);
+    $('placeId').value = DEFAULT_PLACE;
+  } else {
+    $('placeId').value = savedPlace;
+  }
   $('disconnectSec').value = localStorage.getItem(LS.disc) || String(DEFAULT_DISCONNECT_SEC);
   $('placeId').addEventListener('change', () => {
     localStorage.setItem(LS.place, $('placeId').value.trim());
