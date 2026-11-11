@@ -129,6 +129,7 @@
 
       <div class="flex flex-col lg:flex-row gap-2">
         <input id="label" placeholder="Client / label, e.g. Juan" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-accent" />
+        <input id="botId" placeholder="Egg Log Bot ID (blank = auto)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-accent w-64" />
         <select id="preset" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-accent">
           <option value="1">1 hour</option>
           <option value="6">6 hours</option>
@@ -153,6 +154,7 @@
       <div id="newTokenBox" class="hidden mt-4 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
         <div class="text-xs text-slate-300"><b id="newTokenLabel" class="text-white"></b> — give this token to the client:</div>
         <div id="newTokenValue" class="code-font text-[13px] break-all text-emerald-300 my-2"></div>
+        <div class="text-[11px] text-slate-400">Egg Log Bot ID: <b id="newTokenBotId" class="code-font text-brand-accent"></b></div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-2">
           <button id="copyTokenBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg transition">Copy token</button>
           <span id="newTokenExpiry" class="text-[11px] text-slate-400"></span>
@@ -164,7 +166,7 @@
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h2 class="text-base font-semibold text-white flex items-center"><i data-lucide="users" class="w-4 h-4 text-brand-accent mr-2"></i>Clients</h2>
-          <p class="text-xs text-slate-400">Check expiry, renew or revoke access. All clients share the same pet logs.</p>
+          <p class="text-xs text-slate-400">Check expiry, renew or revoke access. Each client only sees the pet logs from their assigned bot ID.</p>
         </div>
         <div class="flex items-center gap-2">
           <input id="search" placeholder="Search label or token hint" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent sm:w-56" />
@@ -178,6 +180,7 @@
             <tr class="text-[11px] font-mono text-slate-400 border-b border-slate-800 uppercase tracking-wider bg-slate-950/40">
               <th class="py-3 px-3">Client</th>
               <th class="py-3 px-3">Token</th>
+              <th class="py-3 px-3">Bot ID</th>
               <th class="py-3 px-3">Status</th>
               <th class="py-3 px-3">Expires</th>
               <th class="py-3 px-3">Last used</th>
@@ -443,7 +446,7 @@
     const list = filteredTokens();
     $('count').textContent = list.length + ' shown • ' + tokens.length + ' total';
     if (!list.length) {
-      $('rows').innerHTML = '<tr><td colspan="6" class="py-10 px-3 text-center text-slate-500">'
+      $('rows').innerHTML = '<tr><td colspan="7" class="py-10 px-3 text-center text-slate-500">'
         + (adminToken() ? 'No client tokens yet.' : 'Enter the admin token to load clients.')
         + '</td></tr>';
       return;
@@ -466,6 +469,8 @@
       return '<tr class="hover:bg-slate-800/30 transition">'
         + '<td class="py-3 px-3"><div class="font-semibold text-white">' + esc(t.label || 'Client') + '</div><div class="text-[10px] text-slate-500 font-mono">' + esc(t.hint || '') + '</div></td>'
         + '<td class="py-3 px-3">' + tokenHtml + '</td>'
+        + '<td class="py-3 px-3"><div class="code-font text-[10px] text-brand-accent break-all max-w-[180px]">' + esc(t.botId || '—') + '</div>'
+        + (t.botId ? '<button data-copy="' + esc(t.botId) + '" class="mt-1 text-[10px] text-slate-400 hover:underline">Copy</button>' : '') + '</td>'
         + '<td class="py-3 px-3">' + statusPill(t.status) + '<div class="text-[10px] text-slate-500 mt-1">' + (t.status === 'active' ? 'in ' + esc(rem) : '') + '</div></td>'
         + '<td class="py-3 px-3"><div class="text-slate-300">' + esc(fmtDate(t.expiresAt)) + '</div><div class="text-[10px] text-slate-500">created ' + esc(fmtDate(t.createdAt)) + '</div></td>'
         + '<td class="py-3 px-3"><div class="text-slate-300">' + esc(ago(t.lastUsedAt)) + '</div><div class="text-[10px] text-slate-500 font-mono">' + esc(t.lastUsedAt ? fmtDate(t.lastUsedAt) : '—') + '</div></td>'
@@ -530,13 +535,15 @@
     try {
       const data = await api('/api/admin/tokens', {
         method: 'POST',
-        body: JSON.stringify({ label, hours }),
+        body: JSON.stringify({ label, hours, botId: $('botId').value.trim() }),
       });
       $('newTokenLabel').textContent = data.client.label;
       $('newTokenValue').textContent = data.token;
+      $('newTokenBotId').textContent = data.client.botId || '';
       $('newTokenExpiry').textContent = 'Expires ' + fmtDate(data.client.expiresAt) + ' • ' + remaining(data.client.remainingMs);
       $('newTokenBox').classList.remove('hidden');
       $('label').value = '';
+      $('botId').value = '';
       setStatus('Token created.', false);
       await load();
     } catch (e) {

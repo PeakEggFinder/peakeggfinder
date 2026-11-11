@@ -34,6 +34,22 @@ git push
 
 There is no build step and no deploy credit limit.
 
+## Separate logs per client
+
+In `/admin`, create a client token and either leave **Egg Log Bot ID** blank
+(auto-generated) or enter your own `bot_...` ID. Copy both the token and bot ID
+to the client.
+
+In the Lua bot:
+
+```lua
+EGGLOG_BOT_ID = "bot_xxxxxxxxxxxxxxxx"
+```
+
+The bot adds that ID to each Cloudflare POST. Client tokens are filtered by
+their assigned bot ID, so each client sees only their own pet logs. Admin sees
+all logs. If `EGGLOG_BOT_ID` is blank, logs remain unassigned/shared.
+
 ## API URL
 
 If the Cloudflare API Worker changes, update the `API_BASE` constant in:
