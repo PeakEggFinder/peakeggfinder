@@ -454,7 +454,7 @@
   const ALERTS_DB_URL = 'https://robloxtracker-90ba3-default-rtdb.asia-southeast1.firebasedatabase.app';
   const ALERTS_PATH = 'alerts';
   const ALERT_FRESH_MS = 120000;    // act on pushes younger than 2 minutes
-  const POLL_MS = 5000;             // fast fallback refresh when Firebase alerts are unavailable
+  const POLL_MS = 60000;            // slow fallback; Firebase alerts handle live updates
   const IDLE_MS = 15 * 60000;       // stop polling an unattended tab
 
   const state = {
