@@ -1,0 +1,31 @@
+[build]
+  publish = "public"
+
+# Dashboard + admin are static files here. The API and database stay on
+# Cloudflare Workers + D1. The browser calls Cloudflare directly, so Netlify
+# serves the site only and does not proxy API traffic.
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin/"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/tracker"
+  to = "/tracker.html"
+  status = 200
+
+[[redirects]]
+  from = "/tracker/"
+  to = "/tracker.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"

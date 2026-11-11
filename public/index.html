@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Egg Finder Service — Pet Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fffbeb',
+              100: '#fef3c7',
+              400: '#fbbf24',
+              500: '#f59e0b',
+              accent: '#FFB800',
+              dark: '#0F172A',
+              card: '#1E293B',
+              border: '#334155'
+            },
+            slate: {
+              50: '#fafaf9', 100: '#f5f5f4', 200: '#e7e5e4', 300: '#d6d3d1',
+              400: '#a8a29e', 500: '#78716c', 600: '#57534e', 700: '#292524',
+              800: '#1c1917', 900: '#0f0e0c', 950: '#050505'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #050505;
+      background-image: radial-gradient(circle at 50% -20%, rgba(255,184,0,.10), transparent 45%);
+      color: #f1f5f9;
+    }
+    .code-font { font-family: 'JetBrains Mono', monospace; }
+    [hidden] { display: none !important; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .rarity-secret { background: rgba(168,85,247,.16); color: #d8b4fe; border: 1px solid rgba(168,85,247,.4); }
+    .rarity-mythic { background: rgba(239,68,68,.16); color: #fca5a5; border: 1px solid rgba(239,68,68,.4); }
+    .rarity-legendary { background: rgba(245,158,11,.16); color: #fcd34d; border: 1px solid rgba(245,158,11,.4); }
+    .rarity-rare { background: rgba(59,130,246,.16); color: #93c5fd; border: 1px solid rgba(59,130,246,.4); }
+    .rarity-common { background: rgba(100,116,139,.18); color: #cbd5e1; border: 1px solid rgba(100,116,139,.35); }
+    .toast-in { animation: toastIn .18s ease-out both; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-[#080705]/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 gap-3">
+        <div class="flex items-center space-x-3 shrink-0">
+          <div class="relative w-10 h-10 flex items-center justify-center">
+            <svg class="w-full h-full drop-shadow-[0_0_10px_rgba(255,184,0,0.3)]" viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M100 15 C 40 15, 15 85, 15 155 C 15 205, 50 225, 100 225 C 150 225, 185 205, 185 155 C 185 85, 160 15, 100 15 Z" fill="#1e293b" stroke="#111827" stroke-width="22" stroke-linejoin="round"/>
+              <path d="M100 30 C 50 30, 30 90, 30 155 C 30 195, 60 210, 100 210 C 140 210, 170 195, 170 155 C 170 90, 150 30, 100 30 Z" fill="#F8FAFC"/>
+              <rect x="120" y="145" width="22" height="42" rx="6" transform="rotate(-40 120 145)" fill="#111827" />
+              <circle cx="100" cy="120" r="38" fill="#111827"/>
+              <circle cx="100" cy="120" r="28" fill="#FFB800"/>
+              <ellipse cx="90" cy="108" rx="8" ry="5" transform="rotate(-30 90 108)" fill="#FFFFFF" opacity="0.85"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-lg tracking-tight text-white whitespace-nowrap">EGG FINDER</span>
+              <span class="text-xs bg-brand-accent/20 text-brand-accent px-2 py-0.5 rounded font-semibold border border-brand-accent/30">SERVICE</span>
+            </div>
+          </div>
+        </div>
+
+        <nav class="hidden md:flex space-x-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+          <button data-tab="overview" class="nav-btn nav-locked px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-brand-accent text-slate-950 shadow-sm">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 inline mr-1.5"></i>Overview
+          </button>
+          <button data-tab="account" class="nav-btn nav-locked px-4 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white transition-all">
+            <i data-lucide="user-check" class="w-4 h-4 inline mr-1.5"></i>Account
+          </button>
+          <button data-tab="preview" class="nav-btn px-4 py-1.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white transition-all">
+            <i data-lucide="eye" class="w-4 h-4 inline mr-1.5"></i>Preview
+          </button>
+        </nav>
+
+        <div class="flex items-center space-x-2 shrink-0">
+          <a id="adminLink" href="admin.html" hidden class="hidden sm:inline-flex items-center text-xs text-slate-300 hover:text-brand-accent px-2 py-1.5 transition">
+            <i data-lucide="shield" class="w-4 h-4 mr-1"></i>Admin
+          </a>
+          <button id="authBtn" class="bg-brand-accent hover:bg-yellow-400 text-slate-950 font-semibold px-3 sm:px-4 py-2 rounded-xl text-sm transition-all flex items-center shadow-lg shadow-brand-accent/10 active:scale-95">
+            <i data-lucide="log-in" class="w-4 h-4 mr-1.5"></i>
+            <span id="authBtnText">Log In</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile tabs -->
+      <nav class="md:hidden flex gap-1 overflow-x-auto pb-2">
+        <button data-tab="overview" class="nav-btn nav-locked px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-accent text-slate-950 whitespace-nowrap">Overview</button>
+        <button data-tab="account" class="nav-btn nav-locked px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 whitespace-nowrap">Account</button>
+        <button data-tab="preview" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 whitespace-nowrap">Preview</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- TOP STAT CARDS -->
+    <div id="statsGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Bot Status</span>
+          <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg"><i data-lucide="bot" class="w-4 h-4"></i></div>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="statBot" class="text-xl font-bold font-mono flex items-center">
+            <span id="statBotDot" class="w-2.5 h-2.5 rounded-full bg-slate-500 mr-2"></span>
+            <span id="statBotText">No logs yet</span>
+          </span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden flex">
+          <div id="statBotBar" class="bg-slate-600 h-full w-0 transition-all"></div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Clients</span>
+          <div class="p-2 bg-brand-accent/10 text-brand-accent rounded-lg"><i data-lucide="users" class="w-4 h-4"></i></div>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="statClients" class="text-2xl font-bold text-white font-mono">—</span>
+          <span class="text-xs text-emerald-400 flex items-center"><i data-lucide="check-circle" class="w-3 h-3 mr-0.5"></i> Licensed</span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+          <div class="bg-brand-accent h-full rounded-full w-full"></div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Pets Logged</span>
+          <div class="p-2 bg-brand-accent/10 text-brand-accent rounded-lg"><i data-lucide="egg" class="w-4 h-4"></i></div>
+        </div>
+        <div class="mt-2 flex items-baseline justify-between gap-2">
+          <span id="statPets" class="text-2xl font-bold text-white font-mono">—</span>
+          <span id="statPetsSub" class="text-xs text-slate-400 font-mono text-right">Last 24h: —</span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+          <div class="bg-brand-accent h-full rounded-full w-full"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="view-overview" class="tab-content space-y-6">
+      <div id="autoJoinCard" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-5" hidden>
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="p-2.5 bg-brand-accent/10 text-brand-accent rounded-xl border border-brand-accent/20">
+              <i data-lucide="zap" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Auto Join</h3>
+              <p class="text-xs text-slate-400">Auto Join goes straight to the first matching pet in the current 5-minute spawn. New matching spawns later show a one-click Join prompt.</p>
+            </div>
+          </div>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label class="text-[11px] font-mono text-slate-400 flex items-center gap-2">
+              <input id="autoJoinEnabled" type="checkbox" class="accent-brand-accent w-4 h-4" /> Enable
+            </label>
+            <label class="text-[11px] font-mono text-slate-400 flex items-center gap-2">Min Money/s
+              <input id="autoJoinMinEarn" type="text" inputmode="decimal" placeholder="e.g. 5b" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent w-40" />
+            </label>
+            <button id="saveAutoJoinBtn" class="px-4 py-2 bg-brand-accent hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition">Save</button>
+          </div>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-3">
+          <p id="autoJoinStatus" class="text-[11px] font-mono text-slate-400"></p>
+          <p id="autoJoinLast" class="text-[11px] font-mono text-slate-500"></p>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-2">Browsers may ask before opening Roblox. If nothing opens, use the Join Server button in the popup.</p>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4 gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-white flex items-center">
+              <i data-lucide="trophy" class="w-4 h-4 text-brand-accent mr-2"></i> Best Top 10 Pet Found
+            </h3>
+            <p class="text-xs text-slate-400">Highest value pet detections logged with instant join link</p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-mono bg-brand-accent/10 text-brand-accent px-2 py-1 rounded border border-brand-accent/20 whitespace-nowrap">Live Rankings</span>
+            <div id="spawnWindow" class="text-[10px] text-slate-500 font-mono mt-1"></div>
+          </div>
+        </div>
+        <div id="top10List" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-base font-semibold text-white">Pet / Rarity</h3>
+            <p class="text-xs text-slate-400">Live pet detections with rarity, value and server join link</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button id="liveBtn" class="text-xs font-mono flex items-center text-emerald-400">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span>
+              <span id="liveText">Live</span>
+            </button>
+            <button id="refreshBtn" class="text-xs text-brand-accent hover:underline flex items-center font-medium">
+              Refresh Logs <i data-lucide="refresh-cw" class="w-3.5 h-3.5 ml-1"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-2 mb-4">
+          <div class="flex-1 relative">
+            <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="filterQ" placeholder="Search pet, rarity or bot" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent" />
+          </div>
+          <input id="filterMin" type="number" min="0" step="1000000" placeholder="Min Money/s" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-accent lg:w-36" />
+          <button id="applyBtn" class="px-4 py-2 bg-brand-accent text-slate-950 font-bold text-xs rounded-xl hover:bg-yellow-400 transition">Apply</button>
+          <button id="resetBtn" class="px-3 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition">Reset</button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[920px]">
+            <thead>
+              <tr class="text-[11px] font-mono text-slate-400 border-b border-slate-800 uppercase tracking-wider">
+                <th class="pb-3 px-3">Pet Name</th>
+                <th class="pb-3 px-3">Rarity</th>
+                <th class="pb-3 px-3">Money/s</th>
+                <th class="pb-3 px-3 text-right">Time Ago</th>
+                <th class="pb-3 px-3 text-right">Join</th>
+              </tr>
+            </thead>
+            <tbody id="logsBody" class="divide-y divide-slate-800/50 text-sm"></tbody>
+          </table>
+        </div>
+        <div id="logsCount" class="text-[11px] text-slate-500 font-mono mt-3"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: ACCOUNT -->
+    <div id="view-account" class="tab-content space-y-6 hidden">
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 max-w-xl mx-auto space-y-6">
+        <div class="flex items-center space-x-4 border-b border-slate-800 pb-4">
+          <div class="p-3 bg-brand-accent/10 text-brand-accent rounded-2xl border border-brand-accent/20">
+            <i data-lucide="user-check" class="w-8 h-8"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 id="accountTitle" class="text-lg font-bold text-white">Account Status</h3>
+            <p class="text-xs text-slate-400 font-mono truncate">Connected API Token: <span id="accountToken" class="text-brand-accent">not logged in</span></p>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 p-6 rounded-xl border border-slate-800 text-center space-y-2">
+          <span class="text-xs font-mono text-slate-400 block uppercase tracking-wider">Time Balance Remaining</span>
+          <span id="accountBalance" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono block">—</span>
+          <p id="accountNote" class="text-[11px] text-slate-500 pt-1">Log in to check your licence.</p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 justify-end">
+          <button id="accountRefreshBtn" class="flex-1 py-2.5 bg-brand-accent hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center shadow-lg">
+            <i data-lucide="refresh-cw" class="w-4 h-4 mr-1.5"></i> Refresh Token State
+          </button>
+          <button id="logoutBtn" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition flex items-center justify-center">
+            <i data-lucide="log-out" class="w-4 h-4 mr-1.5"></i> Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PREVIEW -->
+    <div id="view-preview" class="tab-content space-y-6 hidden">
+      <div class="bg-gradient-to-r from-brand-accent/20 via-slate-900 to-slate-900 border border-brand-accent/40 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-brand-accent text-slate-950 rounded-xl">
+            <i data-lucide="lock" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h4 id="previewTitle" class="text-sm font-bold text-white">Preview Feed</h4>
+            <p id="previewSub" class="text-xs text-slate-300">Log in with your token to load the live feed.</p>
+          </div>
+        </div>
+        <button id="previewPromoBtn" class="whitespace-nowrap px-4 py-2 bg-brand-accent hover:bg-yellow-400 text-slate-950 font-bold text-xs rounded-xl transition shadow">
+          Want an Egg Finder?
+        </button>
+      </div>
+
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-semibold text-white">Live Pet Preview Feed</h3>
+            <p class="text-xs text-slate-400">Telemetry from scanner nodes</p>
+          </div>
+          <span class="text-xs text-emerald-400 font-mono flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1.5"></span> Live Stream</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[920px]">
+            <thead>
+              <tr class="text-[11px] font-mono text-slate-400 border-b border-slate-800 uppercase tracking-wider">
+                <th class="pb-3 px-3">Pet Name</th>
+                <th class="pb-3 px-3">Rarity</th>
+                <th class="pb-3 px-3">Money/s</th>
+                <th class="pb-3 px-3 text-right">Detected</th>
+                <th class="pb-3 px-3 text-right">Join</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody" class="divide-y divide-slate-800/50 text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+
+  <!-- LOG IN WITH TOKEN MODAL -->
+  <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative mx-4">
+      <button type="button" data-close="login-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="p-2.5 bg-brand-accent/10 text-brand-accent rounded-xl border border-brand-accent/20">
+          <i data-lucide="key-round" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Log In with Token</h3>
+          <p class="text-xs text-slate-400">Enter your Egg Finder access token to unlock the live logs.</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-xs font-mono text-slate-400 mb-1">Access Token</label>
+          <input id="loginToken" type="text" required autocomplete="off" spellcheck="false" placeholder="eggcli_xxxxxxxx" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-brand-accent" />
+          <p id="loginError" class="text-[11px] text-red-400 mt-2 hidden"></p>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 pt-1">
+          <button type="button" data-close="login-modal" class="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-medium rounded-xl hover:bg-slate-700 transition">Cancel</button>
+          <button id="loginSubmitBtn" type="submit" class="px-4 py-2 bg-brand-accent text-slate-950 font-bold text-xs rounded-xl hover:bg-yellow-400 transition flex items-center">
+            <i data-lucide="log-in" class="w-4 h-4 mr-1.5"></i> Log In
+          </button>
+        </div>
+      </form>
+
+      <div class="mt-5 pt-4 border-t border-slate-800/80 text-center">
+        <p class="text-xs text-slate-400">
+          Don't have a token yet?
+          <button type="button" id="availBtn" class="text-brand-accent hover:text-yellow-400 font-semibold underline ml-1 transition">Avail Here</button>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTO JOIN POPUP -->
+  <div id="autojoin-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-brand-accent/40 rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-center space-y-4 mx-4">
+      <button type="button" data-close="autojoin-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="w-12 h-12 bg-brand-accent/10 text-brand-accent rounded-2xl flex items-center justify-center mx-auto border border-brand-accent/20">
+        <i data-lucide="zap" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-white">Auto Join Match</h3>
+        <p id="autoJoinPet" class="text-sm text-white font-semibold mt-1"></p>
+        <p id="autoJoinMeta" class="text-xs text-slate-400 font-mono mt-1"></p>
+      </div>
+      <a id="autoJoinLink" href="#" rel="noopener" class="w-full py-2.5 px-4 bg-brand-accent hover:bg-yellow-400 text-slate-950 font-bold text-sm rounded-xl flex items-center justify-center transition shadow-lg">
+        <i data-lucide="log-in" class="w-4 h-4 mr-1.5"></i> Join Server
+      </a>
+      <p class="text-[10px] text-slate-500">Click Join Server once, then wait for Roblox to finish loading. Clicking again can reopen your previous server.</p>
+      <button type="button" data-close="autojoin-modal" class="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- PROMO MODAL -->
+  <div id="promo-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-center space-y-4 mx-4">
+      <button type="button" data-close="promo-modal" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="w-12 h-12 bg-brand-accent/10 text-brand-accent rounded-2xl flex items-center justify-center mx-auto border border-brand-accent/20">
+        <i data-lucide="sparkles" class="w-6 h-6"></i>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-bold text-white">Want an Egg Finder?</h3>
+        <p class="text-xs text-slate-400 mt-1">Unlock real-time instant server joins, rare egg alerts, and bot automation passes by getting in touch with our team below.</p>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <a id="discordLink" href="https://discord.gg/XcmkKgAxkn" target="_blank" rel="noopener" class="w-full py-2.5 px-4 bg-[#5865F2] hover:bg-[#4752C4] text-white font-semibold text-xs rounded-xl flex items-center justify-center space-x-2 transition shadow-lg">
+          <i data-lucide="message-square" class="w-4 h-4"></i>
+          <span>Join our Discord Server</span>
+        </a>
+        <a id="facebookLink" href="https://www.facebook.com/profile.php?id=61594104640872" target="_blank" rel="noopener" class="w-full py-2.5 px-4 bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-xs rounded-xl flex items-center justify-center space-x-2 transition shadow-lg">
+          <i data-lucide="facebook" class="w-4 h-4"></i>
+          <span>Connect on Facebook Page</span>
+        </a>
+      </div>
+
+      <button type="button" data-close="promo-modal" class="text-xs text-slate-500 hover:text-slate-300 pt-2 block mx-auto">Close Preview Popup</button>
+    </div>
+  </div>
+
+  <!-- Keep dynamic Tailwind classes available to the Play CDN. -->
+  <div class="hidden" aria-hidden="true">
+    <span class="bg-amber-500/20 text-amber-400 border border-amber-500/40"></span>
+    <span class="bg-slate-300/20 text-slate-200 border border-slate-300/40"></span>
+    <span class="bg-amber-700/20 text-amber-600 border border-amber-700/40"></span>
+    <span class="bg-slate-800 text-slate-400"></span>
+    <span class="bg-emerald-500"></span>
+    <span class="bg-amber-500"></span>
+    <span class="bg-red-500"></span>
+    <span class="bg-slate-600"></span>
+    <span class="bg-emerald-400 animate-pulse"></span>
+    <span class="bg-amber-400"></span>
+    <span class="bg-red-400"></span>
+    <span class="text-emerald-400"></span>
+    <span class="text-amber-400"></span>
+    <span class="text-red-400"></span>
+    <span class="text-slate-400"></span>
+    <span class="animate-spin"></span>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const LS_TOKEN = 'eggFinder.token';
+  const LS_SESSION = 'eggFinder.sessionId';
+  const LS_FILTERS = 'eggFinder.filters';
+  const LS_LIVE = 'eggFinder.live';
+  const API_BASE = 'https://egg-pet-logs.egg-pet-logs.workers.dev';
+  // Bots push valuable pets here (same database as the tracker). Public read is
+  // allowed by firebase-tracker-rules.json, so the page needs no Firebase auth.
+  const ALERTS_DB_URL = 'https://robloxtracker-90ba3-default-rtdb.asia-southeast1.firebasedatabase.app';
+  const ALERTS_PATH = 'alerts';
+  const ALERT_FRESH_MS = 120000;    // act on pushes younger than 2 minutes
+  const POLL_MS = 60000;            // fallback refresh for history/stats
+  const IDLE_MS = 15 * 60000;       // stop polling an unattended tab
+
+  const state = {
+    token: localStorage.getItem(LS_TOKEN) || '',
+    sessionId: localStorage.getItem(LS_SESSION) || '',
+    auth: null,
+    logs: [],
+    top: [],
+    stats: {},
+    total: 0,
+    health: {},
+    live: localStorage.getItem(LS_LIVE) !== '0',
+    loading: false,
+    tab: 'overview',
+    spawnStart: 0,
+    autojoin: null,
+    lastAutoJoin: null,
+    autoJoinWindow: 0,
+    autoJoinedOnce: false,
+    filters: { q: '', minEarn: '' },
+    alertApp: null,
+    alertRef: null,
+    alertsSeen: new Set(),
+    alertLogs: [],
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_FILTERS) || '{}');
+    if (saved && typeof saved === 'object') {
+      state.filters = {
+        q: String(saved.q || ''),
+        minEarn: String(saved.minEarn || ''),
+      };
+    }
+  } catch { /* ignore broken filter storage */ }
+
+  if (state.filters.q) $('filterQ').value = state.filters.q;
+  if (state.filters.minEarn) $('filterMin').value = state.filters.minEarn;
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function num(v, fallback = 0) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function fmtMoney(n) {
+    n = num(n);
+    const abs = Math.abs(n);
+    if (abs >= 1e12) return (n / 1e12).toFixed(2).replace(/\.00$/, '') + 'T/s';
+    if (abs >= 1e9) return (n / 1e9).toFixed(2).replace(/\.00$/, '') + 'B/s';
+    if (abs >= 1e6) return (n / 1e6).toFixed(2).replace(/\.00$/, '') + 'M/s';
+    if (abs >= 1e3) return (n / 1e3).toFixed(2).replace(/\.00$/, '') + 'K/s';
+    return Math.round(n).toLocaleString() + '/s';
+  }
+  function fmtKg(n) {
+    n = num(n);
+    if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.00$/, '') + 'M kg';
+    if (n >= 1e3) return (n / 1e3).toFixed(2).replace(/\.00$/, '') + 'K kg';
+    return n.toFixed(n >= 100 ? 0 : 2) + ' kg';
+  }
+  function expandMoneyShorthand(value) {
+    const raw = String(value || '').trim().replace(/,/g, '');
+    const match = raw.match(/^(\d+(?:\.\d+)?)\s*([kmbt])$/i);
+    if (!match) return null;
+    const mult = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 }[match[2].toLowerCase()];
+    if (!mult) return null;
+    return String(Math.round(Number(match[1]) * mult));
+  }
+  function bindMoneyInput(el) {
+    if (!el) return;
+    el.addEventListener('focus', () => { try { el.select(); } catch { /* ignore */ } });
+    el.addEventListener('input', () => {
+      const expanded = expandMoneyShorthand(el.value);
+      if (expanded !== null) {
+        el.value = expanded;
+        try { el.setSelectionRange(expanded.length, expanded.length); } catch { /* ignore */ }
+      }
+    });
+  }
+  function parseMoneyValue(value) {
+    const raw = String(value || '').trim().replace(/,/g, '');
+    const expanded = expandMoneyShorthand(raw);
+    if (expanded !== null) return Number(expanded) || 0;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+  function timeAgo(ms) {
+    const s = Math.max(0, Math.floor((Date.now() - num(ms)) / 1000));
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+  function utcStamp(ms) {
+    const d = new Date(num(ms));
+    if (!Number.isFinite(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) + ' '
+      + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + ' UTC';
+  }
+  const SPAWN_WINDOW_MS = 5 * 60 * 1000;
+  function spawnWindowStart(ms = Date.now()) {
+    return Math.floor(num(ms) / SPAWN_WINDOW_MS) * SPAWN_WINDOW_MS;
+  }
+  function spawnWindowLabel(start) {
+    const a = new Date(start).toISOString().slice(11, 16);
+    const b = new Date(start + SPAWN_WINDOW_MS).toISOString().slice(11, 16);
+    return 'Spawn ' + a + '–' + b + ' UTC';
+  }
+  function remainingText(ms) {
+    const s = Math.max(0, Math.floor(num(ms) / 1000));
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return d + ' Days, ' + h + ' Hours';
+    if (h > 0) return h + ' Hours, ' + m + ' Minutes';
+    return m + ' Minutes';
+  }
+  function maskToken(t) {
+    if (!t) return 'not logged in';
+    return t.length <= 16 ? t : t.slice(0, 12) + '…' + t.slice(-4);
+  }
+  function rarityClass(rarity) {
+    const r = String(rarity || '').toUpperCase();
+    if (r === 'SECRET' || r === 'DIVINE' || r === 'ETERNAL' || r === 'GODLY') return 'rarity-secret';
+    if (r === 'MYTHIC' || r === 'EXOTIC' || r === 'BOSS') return 'rarity-mythic';
+    if (r === 'LEGENDARY' || r === 'ENCHANTED' || r === 'SAKURA') return 'rarity-legendary';
+    if (r === 'RARE' || r === 'EPIC' || r === 'UNCOMMON') return 'rarity-rare';
+    return 'rarity-common';
+  }
+  function directJoin(log) {
+    if (log && log.directLink && /^roblox:\/\//i.test(log.directLink)) return log.directLink;
+    if (log && log.placeId && log.jobId) {
+      return 'roblox://experiences/start?placeId=' + encodeURIComponent(log.placeId)
+        + '&gameInstanceId=' + encodeURIComponent(log.jobId);
+    }
+    return '';
+  }
+  function joinTarget(log) {
+    if (/Android/i.test(navigator.userAgent)) {
+      const place = encodeURIComponent(log.placeId || '');
+      const job = encodeURIComponent(log.jobId || '');
+      return 'intent://experiences/start?placeId=' + place + '&gameInstanceId=' + job
+        + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.roblox.client;end';
+    }
+    // The https://www.roblox.com/games/start URL often ignores gameInstanceId
+    // and drops the player into a random server. The protocol link is the
+    // reliable way to target an exact JobId on desktop and iOS.
+    return directJoin(log);
+  }
+  function autoJoinWindowKey() {
+    return 'eggFinder.autoJoinWindow.' + (state.token || '');
+  }
+  function autoJoinOnceKey() {
+    return 'eggFinder.autoJoinedOnce.' + (state.token || '');
+  }
+  function loadAutoJoinWindow() {
+    state.autoJoinWindow = Number(localStorage.getItem(autoJoinWindowKey())) || 0;
+    state.autoJoinedOnce = localStorage.getItem(autoJoinOnceKey()) === '1';
+  }
+  function apiBase() {
+    return API_BASE;
+  }
+  function headers() {
+    const h = { 'Content-Type': 'application/json' };
+    if (state.token) h['X-Dashboard-Token'] = state.token;
+    if (state.sessionId) h['X-Session-Id'] = state.sessionId;
+    return h;
+  }
+  async function api(path, options = {}) {
+    if (!apiBase()) throw new Error('Open this page from the deployed Worker URL.');
+    const res = await fetch(apiBase() + path, {
+      ...options,
+      headers: { ...headers(), ...(options.headers || {}) },
+      cache: 'no-store',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || ('HTTP ' + res.status));
+      err.status = res.status;
+      err.data = data;
+      err.inUse = res.status === 409 && data.inUse === true;
+      err.sessionRequired = res.status === 409 && data.sessionRequired === true;
+      throw err;
+    }
+    return data;
+  }
+
+  function newSessionId() {
+    if (window.crypto && typeof crypto.randomUUID === 'function') {
+      return 'web_' + crypto.randomUUID();
+    }
+    return 'web_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  function toast(message) {
+    const el = document.createElement('div');
+    el.className = 'toast-in fixed bottom-5 right-5 bg-slate-900 border border-brand-accent text-brand-accent font-mono text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-2 max-w-[90vw]';
+    el.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 text-brand-accent shrink-0"></i>';
+    const span = document.createElement('span');
+    span.textContent = String(message || '');
+    el.appendChild(span);
+    document.body.appendChild(el);
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => el.remove(), 3200);
+  }
+
+  function openModal(id) { $(id).classList.remove('hidden'); }
+  function closeModal(id) { $(id).classList.add('hidden'); }
+
+  function openLogin(message) {
+    const err = $('loginError');
+    if (message) {
+      err.textContent = message;
+      err.classList.remove('hidden');
+    } else {
+      err.textContent = '';
+      err.classList.add('hidden');
+    }
+    openModal('login-modal');
+    setTimeout(() => $('loginToken').focus(), 50);
+  }
+
+  function handleAuthFailure(err, forcedMessage) {
+    const data = err && err.data ? err.data : {};
+    stopAlertFeed();
+    state.auth = null;
+    state.logs = [];
+    state.top = [];
+    state.stats = {};
+    state.total = 0;
+    state.autojoin = null;
+    state.lastAutoJoin = null;
+    state.autoJoinWindow = 0;
+    state.autoJoinedOnce = false;
+    state.alertLogs = [];
+    state.alertsSeen = new Set();
+    state.token = '';
+    state.sessionId = '';
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_SESSION);
+    renderAll();
+    const message = forcedMessage || (data.expired
+      ? 'Licence expired. Ask the admin to renew it.'
+      : data.revoked
+        ? 'This token was revoked.'
+        : (err && err.message) || 'Please log in again.');
+    openLogin(message);
+  }
+
+  function filterParams(extra = {}) {
+    const p = new URLSearchParams();
+    if (state.filters.q) p.set('q', state.filters.q);
+    if (state.filters.minEarn) p.set('minEarn', state.filters.minEarn);
+    for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
+    return p.toString();
+  }
+
+  // ---- live alert feed (Firebase push) -------------------------------------
+  function alertKey(a) {
+    return String((a && a.id) || ((a && a.at) + '|' + (a && a.pet)));
+  }
+  function matchesFilters(log) {
+    if (!log) return false;
+    const q = String(state.filters.q || '').toLowerCase();
+    const minEarn = parseMoneyValue(state.filters.minEarn);
+    if (minEarn && num(log.earnPerSec) < minEarn) return false;
+    if (!q) return true;
+    return [log.pet, log.rarity, log.username, log.mutation, log.device]
+      .some((v) => String(v || '').toLowerCase().indexOf(q) !== -1);
+  }
+  function mergeAlertLogs(logs) {
+    const out = logs.slice();
+    const ids = new Set(out.map((l) => String(l.id)));
+    for (const a of state.alertLogs) {
+      if (!ids.has(String(a.id)) && matchesFilters(a)) {
+        out.push(a);
+        ids.add(String(a.id));
+      }
+    }
+    return out.sort((a, b) => num(b.at) - num(a.at)).slice(0, 200);
+  }
+  function acceptAlert(a) {
+    if (!a || typeof a !== 'object' || !a.pet) return;
+    const id = alertKey(a);
+    if (state.alertsSeen.has(id)) return;
+    state.alertsSeen.add(id);
+    if (state.alertsSeen.size > 400) {
+      state.alertsSeen = new Set(Array.from(state.alertsSeen).slice(-200));
+    }
+
+    const at = num(a.at, Date.now());
+    const log = Object.assign({}, a, { id, at });
+    const age = Date.now() - at;
+    const fresh = age <= ALERT_FRESH_MS;
+
+    if (matchesFilters(log) && age <= 10 * 60000) {
+      state.alertLogs.unshift(log);
+      if (state.alertLogs.length > 50) state.alertLogs.length = 50;
+      if (!state.logs.some((l) => String(l.id) === id)) {
+        state.logs.unshift(log);
+        if (state.logs.length > 200) state.logs.length = 200;
+      }
+    }
+    if (at >= spawnWindowStart()) {
+      state.top = [log]
+        .concat(state.top.filter((p) => String(p.id) !== id))
+        .sort((a, b) => num(b.earnPerSec) - num(a.earnPerSec))
+        .slice(0, 10);
+    }
+    if (state.auth) {
+      renderLogs();
+      renderPreview();
+      renderTop10();
+    }
+    if (fresh) {
+      toast('New ' + (a.rarity ? a.rarity + ' ' : '') + a.pet + ' • ' + fmtMoney(a.earnPerSec));
+      handleAlertAutoJoin(log);
+    }
+  }
+  function handleAlertAutoJoin(a) {
+    if (!state.autojoin || state.autojoin.enabled !== true) return;
+    if (!state.auth || state.auth.kind !== 'client') return;
+    if (num(a.earnPerSec) < num(state.autojoin.minEarn)) return;
+    // Let the Worker claim the window. It is the single source of truth when
+    // the Lua GUI and this page are open on the same token.
+    checkAutoJoin();
+  }
+  function stopAlertFeed() {
+    try { if (state.alertRef) state.alertRef.off(); } catch { /* ignore */ }
+    state.alertRef = null;
+    try {
+      const app = state.alertApp;
+      if (app) Promise.resolve(app.delete()).catch(() => {});
+    } catch { /* ignore */ }
+    state.alertApp = null;
+  }
+  function startAlertFeed() {
+    if (state.alertRef || !state.token || !state.auth) return;
+    if (typeof firebase === 'undefined' || !ALERTS_DB_URL) return;
+    try {
+      let app;
+      try {
+        app = firebase.app('eggAlerts');
+      } catch {
+        app = firebase.initializeApp({ databaseURL: ALERTS_DB_URL }, 'eggAlerts');
+      }
+      state.alertApp = app;
+      state.alertRef = app.database().ref(ALERTS_PATH).orderByKey().limitToLast(30);
+      state.alertRef.on('child_added', (snap) => acceptAlert(snap.val()));
+    } catch (err) {
+      console.warn('[alerts] live feed unavailable', err);
+      state.alertRef = null;
+      state.alertApp = null;
+    }
+  }
+
+  async function loadSnapshot(windowStart) {
+    try {
+      return await api('/api/snapshot?' + filterParams({ limit: 100, windowStart }));
+    } catch (err) {
+      if (err.status !== 404) throw err;
+    }
+    // Older Worker without /api/snapshot: keep the legacy multi-call path.
+    const [auth, latest, top, health] = await Promise.all([
+      api('/api/auth'),
+      api('/api/pets?' + filterParams({ limit: 100 })),
+      api('/api/pets?sort=earn&limit=10&since=' + windowStart),
+      api('/api/health'),
+    ]);
+    let autojoin = null;
+    if (auth && auth.kind === 'client') {
+      try { autojoin = await api('/api/autojoin/settings'); } catch { autojoin = null; }
+    }
+    return {
+      auth,
+      logs: latest.logs,
+      total: latest.total,
+      stats: latest.stats,
+      top: top.logs,
+      botStatus: health.botStatus,
+      botStatusUpdatedAt: health.botStatusUpdatedAt,
+      activeClients: health.activeClients,
+      autojoin,
+    };
+  }
+
+  async function refreshAll() {
+    if (!state.token || state.loading) return;
+    state.loading = true;
+    $('refreshBtn').disabled = true;
+    try {
+      const windowStart = spawnWindowStart();
+      state.spawnStart = windowStart;
+      const snap = await loadSnapshot(windowStart);
+      state.auth = snap.auth;
+      if (state.auth && state.auth.kind === 'client') {
+        state.autojoin = snap.autojoin || state.autojoin;
+        loadAutoJoinWindow();
+      } else {
+        state.autojoin = null;
+        state.lastAutoJoin = null;
+        state.autoJoinWindow = 0;
+      }
+      state.logs = mergeAlertLogs(Array.isArray(snap.logs) ? snap.logs : []);
+      state.total = snap.total != null ? num(snap.total, state.logs.length) : state.logs.length;
+      state.stats = snap.stats || {};
+      state.top = Array.isArray(snap.top) ? snap.top : [];
+      state.health = {
+        botStatus: snap.botStatus,
+        botStatusUpdatedAt: snap.botStatusUpdatedAt,
+        activeClients: snap.activeClients,
+      };
+      renderAll();
+      checkAutoJoin();
+    } catch (err) {
+      if (err.status === 401) {
+        handleAuthFailure(err);
+      } else if (err.inUse) {
+        handleAuthFailure(err, 'This token is in use on another device. Log out there first.');
+      } else if (err.sessionRequired) {
+        handleAuthFailure(err, 'Session expired. Log in again.');
+      } else {
+        toast('Load failed: ' + (err && err.message ? err.message : err));
+      }
+    } finally {
+      state.loading = false;
+      $('refreshBtn').disabled = false;
+    }
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderStats();
+    renderTop10();
+    renderLogs();
+    renderPreview();
+    renderAccount();
+    renderAutoJoin();
+    syncAccess();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Guests may only use the Preview tab. Overview and Account unlock after
+  // a client/admin token is accepted.
+  function syncAccess() {
+    const loggedIn = !!state.auth;
+    document.querySelectorAll('.nav-locked').forEach((btn) => { btn.hidden = !loggedIn; });
+    $('statsGrid').hidden = !loggedIn;
+    if (!loggedIn && state.tab !== 'preview') switchTab('preview');
+  }
+
+  function renderHeader() {
+    const adminLink = $('adminLink');
+    adminLink.hidden = !(state.auth && state.auth.kind === 'admin');
+    $('authBtnText').textContent = state.auth
+      ? (state.auth.kind === 'admin' ? 'Admin' : (state.auth.label || 'Account'))
+      : 'Log In';
+  }
+
+  function renderStats() {
+    const stats = state.stats || {};
+    const total = num(stats.total);
+    const maintenance = state.health && state.health.botStatus === 'maintenance';
+    $('statBotText').textContent = maintenance ? 'Maintenance' : 'Working';
+    $('statBotText').className = maintenance ? 'text-amber-400' : 'text-emerald-400';
+    $('statBotDot').className = 'w-2.5 h-2.5 rounded-full mr-2 ' + (maintenance ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse');
+    $('statBotBar').className = 'h-full transition-all ' + (maintenance ? 'bg-amber-500' : 'bg-emerald-500');
+    $('statBotBar').style.width = '100%';
+
+    $('statClients').textContent = state.health && state.health.activeClients != null
+      ? Number(state.health.activeClients).toLocaleString()
+      : '—';
+    $('statPets').textContent = total.toLocaleString();
+    $('statPetsSub').textContent = 'Last 24h: ' + num(stats.last24h).toLocaleString()
+      + (num(stats.bestEarn) > 0 ? ' • Best: ' + fmtMoney(stats.bestEarn) : '');
+  }
+
+  function renderTop10() {
+    const box = $('top10List');
+    $('spawnWindow').textContent = state.spawnStart ? spawnWindowLabel(state.spawnStart) : '';
+    if (!state.top.length) {
+      box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged in this 5-minute spawn yet.</div>';
+      return;
+    }
+    box.innerHTML = state.top.map((pet, i) => {
+      const rank = i + 1;
+      const rankStyle = rank === 1
+        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+        : rank === 2
+          ? 'bg-slate-300/20 text-slate-200 border border-slate-300/40'
+          : rank === 3
+            ? 'bg-amber-700/20 text-amber-600 border border-amber-700/40'
+            : 'bg-slate-800 text-slate-400';
+      const sub = [fmtMoney(pet.earnPerSec)];
+      if (pet.kg) sub.push(fmtKg(pet.kg));
+      sub.push(timeAgo(pet.at));
+      const canJoin = !!(joinTarget(pet));
+      const joinLabel = canJoin ? 'Join' : 'Locked';
+      return '<div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between gap-3 hover:border-slate-700 transition">'
+        + '<div class="flex items-center space-x-3 min-w-0">'
+        + '<span class="w-6 h-6 shrink-0 flex items-center justify-center font-mono text-xs font-bold rounded-lg ' + rankStyle + '">#' + rank + '</span>'
+        + '<div class="min-w-0">'
+        + '<p class="text-base font-semibold text-white flex items-center gap-2 min-w-0">'
+        + '<span class="truncate">' + esc(pet.pet || 'Unknown') + '</span>'
+        + '<span class="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded shrink-0 ' + rarityClass(pet.rarity) + '">' + esc(pet.rarity || '?') + '</span>'
+        + '</p>'
+        + '<p class="text-sm font-mono font-semibold text-emerald-400 mt-0.5 truncate">' + esc(sub.join(' • ')) + '</p>'
+        + '</div></div>'
+        + '<button type="button" data-join="' + esc(pet.id) + '"' + (canJoin ? '' : ' disabled')
+        + ' class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition '
+        + (canJoin
+          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + '">' + joinLabel + '</button>'
+        + '</div>';
+    }).join('');
+    box.querySelectorAll('[data-join]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const pet = state.top.find((item) => String(item.id) === btn.getAttribute('data-join'));
+        if (!pet) return;
+        const link = joinTarget(pet);
+        if (link) window.location.href = link;
+      });
+    });
+  }
+
+  function renderLogs() {
+    const body = $('logsBody');
+    if (!state.logs.length) {
+      body.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-slate-500">'
+        + (state.auth ? 'No pet logs match these filters yet.' : 'Log in with your token to load the live feed.')
+        + '</td></tr>';
+      $('logsCount').textContent = '';
+      return;
+    }
+    body.innerHTML = state.logs.map((log) => {
+      const extra = [];
+      if (log.kg) extra.push(fmtKg(log.kg));
+      if (log.halloween && log.scale) extra.push('scale x' + num(log.scale).toFixed(2));
+      const canJoin = !!(joinTarget(log));
+      const joinLabel = canJoin ? 'Join' : 'Locked';
+      return '<tr class="hover:bg-slate-800/30 transition">'
+        + '<td class="py-3 px-3 font-semibold text-white">'
+        + '<div class="flex items-center"><i data-lucide="egg" class="w-4 h-4 text-brand-accent mr-2 shrink-0"></i><span class="truncate text-base">' + esc(log.pet || 'Unknown') + '</span></div>'
+        + (extra.length ? '<div class="text-xs text-slate-400 font-mono pl-6">' + esc(extra.join(' • ')) + '</div>' : '')
+        + '</td>'
+        + '<td class="py-3 px-3"><span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded ' + rarityClass(log.rarity) + '">' + esc(log.rarity || '?') + '</span></td>'
+        + '<td class="py-3 px-3 font-mono font-bold text-lg text-emerald-400">' + esc(fmtMoney(log.earnPerSec)) + '</td>'
+        + '<td class="py-3 px-3 text-right font-mono text-slate-400 text-xs">' + esc(timeAgo(log.at)) + '<div class="text-[10px] text-slate-600">' + esc(utcStamp(log.at)) + '</div></td>'
+        + '<td class="py-3 px-3 text-right">'
+        + '<button type="button" data-join="' + esc(log.id) + '"' + (canJoin ? '' : ' disabled')
+        + ' class="px-3 py-1.5 rounded-lg text-xs font-bold transition '
+        + (canJoin
+          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + '">' + joinLabel + '</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+    body.querySelectorAll('[data-join]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
+        if (!log) return;
+        const link = joinTarget(log);
+        if (link) window.location.href = link;
+      });
+    });
+    $('logsCount').textContent = state.logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
+  }
+
+  function renderPreview() {
+    const body = $('previewBody');
+    const hasData = state.auth && state.logs.length > 0;
+    $('previewTitle').textContent = state.auth ? 'Preview Mode' : 'Guest Preview Mode (No Token Detected)';
+    $('previewSub').textContent = state.auth
+      ? 'Preview of the live feed. Auto Join handles the exact-server join.'
+      : 'Log in with your token to load the live feed.';
+    if (!hasData) {
+      body.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-slate-500">'
+        + (state.auth ? 'No live feed data yet.' : 'Enter your token to view the live feed.')
+        + '</td></tr>';
+      return;
+    }
+    body.innerHTML = state.logs.slice(0, 50).map((log) => {
+      const canJoin = !!(joinTarget(log));
+      const joinLabel = canJoin ? 'Join' : 'Locked';
+      return '<tr class="hover:bg-slate-800/30 transition">'
+        + '<td class="py-3 px-3 font-semibold text-white flex items-center"><i data-lucide="egg" class="w-4 h-4 text-brand-accent mr-2"></i><span class="text-base">' + esc(log.pet || 'Unknown') + '</span></td>'
+        + '<td class="py-3 px-3"><span class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded ' + rarityClass(log.rarity) + '">' + esc(log.rarity || '?') + '</span></td>'
+        + '<td class="py-3 px-3 font-mono font-bold text-lg text-emerald-400">' + esc(fmtMoney(log.earnPerSec)) + '</td>'
+        + '<td class="py-3 px-3 text-right font-mono text-slate-400 text-xs">' + esc(timeAgo(log.at)) + '</td>'
+        + '<td class="py-3 px-3 text-right">'
+        + '<button type="button" data-join="' + esc(log.id) + '"' + (canJoin ? '' : ' disabled')
+        + ' class="px-3 py-1.5 rounded-lg text-xs font-bold transition '
+        + (canJoin
+          ? 'bg-brand-accent text-slate-950 hover:bg-yellow-400'
+          : 'bg-slate-800 text-slate-500 cursor-not-allowed')
+        + '">' + joinLabel + '</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+    body.querySelectorAll('[data-join]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
+        if (!log) return;
+        const link = joinTarget(log);
+        if (link) window.location.href = link;
+      });
+    });
+  }
+
+  function renderAccount() {
+    const auth = state.auth;
+    $('accountToken').textContent = maskToken(state.token);
+    if (!auth) {
+      $('accountTitle').textContent = 'Account Status';
+      $('accountBalance').textContent = 'Not logged in';
+      $('accountBalance').className = 'text-2xl sm:text-3xl font-extrabold text-slate-400 font-mono block';
+      $('accountNote').textContent = 'Log in to check your licence.';
+      return;
+    }
+    $('accountTitle').textContent = (auth.label || 'Client') + (auth.kind === 'admin' ? ' (Admin)' : '');
+    if (auth.kind === 'admin') {
+      $('accountBalance').textContent = 'Unlimited (Admin)';
+      $('accountBalance').className = 'text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono block';
+      $('accountNote').textContent = 'Admin access can manage clients and view all logs.';
+    } else {
+      $('accountBalance').textContent = remainingText(auth.remainingMs);
+      $('accountBalance').className = 'text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono block';
+      $('accountNote').textContent = 'Expires ' + utcStamp(auth.expiresAt) + '. Time runs on the server and cannot be paused.';
+    }
+  }
+
+  function renderAutoJoin() {
+    const auth = state.auth;
+    const card = $('autoJoinCard');
+    const isClient = !!(auth && auth.kind === 'client');
+    card.hidden = !isClient;
+    if (!isClient) return;
+
+    const settings = state.autojoin || { enabled: false, minEarn: 3000000000, updatedAt: 0 };
+    $('autoJoinEnabled').checked = settings.enabled === true;
+    $('autoJoinMinEarn').value = String(Math.round(Number(settings.minEarn) || 0));
+    $('autoJoinStatus').textContent = 'Auto Join: ' + (settings.enabled ? 'ON' : 'OFF')
+      + ' • Min ' + fmtMoney(settings.minEarn)
+      + (settings.updatedAt ? ' • updated ' + utcStamp(settings.updatedAt) : '');
+    const last = state.lastAutoJoin;
+    $('autoJoinLast').textContent = last
+      ? 'Last match: ' + (last.pet || 'pet') + ' • ' + utcStamp(last.at)
+      : '';
+  }
+
+  async function checkAutoJoin() {
+    if (!state.autojoin || !state.autojoin.enabled) return;
+    if (!state.auth || state.auth.kind !== 'client') return;
+    try {
+      const data = await api('/api/autojoin/next');
+      if (!data || !data.join) return;
+      const join = data.join;
+      const windowStart = Number(data.windowStart) || 0;
+      if (windowStart && state.autoJoinWindow === windowStart) return;
+      if (state.lastAutoJoin && state.lastAutoJoin.id === join.id) return;
+      state.lastAutoJoin = { id: join.id, at: Date.now(), pet: join.pet || 'pet' };
+      state.autoJoinWindow = windowStart;
+      if (windowStart) localStorage.setItem(autoJoinWindowKey(), String(windowStart));
+      renderAutoJoin();
+      const firstJoin = (typeof data.first === 'boolean') ? data.first : !state.autoJoinedOnce;
+      if (firstJoin) {
+        state.autoJoinedOnce = true;
+        localStorage.setItem(autoJoinOnceKey(), '1');
+        directAutoJoin(join);
+      } else {
+        triggerAutoJoin(join);
+      }
+    } catch {
+      // Auto Join is best-effort; the normal dashboard still works.
+    }
+  }
+
+  function directAutoJoin(join) {
+    const link = joinTarget(join);
+    if (!link) return;
+    toast('Auto joining ' + (join.pet || 'pet') + '...');
+    try {
+      window.location.href = link;
+    } catch {
+      // If the browser blocks the protocol, the next spawn will still prompt.
+    }
+  }
+
+  function triggerAutoJoin(join) {
+    const link = joinTarget(join);
+    if (!link) return;
+    $('autoJoinPet').textContent = (join.pet || 'Unknown pet') + (join.rarity ? ' • ' + join.rarity : '');
+    $('autoJoinMeta').textContent = fmtMoney(join.earnPerSec) + ' • ' + timeAgo(join.at)
+      + ' • ' + (join.players != null ? join.players : '?') + '/' + (join.capacity || 7) + ' players';
+    const btn = $('autoJoinLink');
+    btn.href = link;
+    btn.dataset.busy = '0';
+    btn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4 mr-1.5"></i> Join Server';
+    openModal('autojoin-modal');
+    if (window.lucide) lucide.createIcons();
+    toast('Auto Join match: ' + (join.pet || 'pet'));
+  }
+
+  function switchTab(tab) {
+    if (!state.auth && tab !== 'preview') tab = 'preview';
+    state.tab = tab;
+    document.querySelectorAll('.tab-content').forEach((el) => el.classList.add('hidden'));
+    const view = $('view-' + tab);
+    if (view) view.classList.remove('hidden');
+    document.querySelectorAll('.nav-btn').forEach((btn) => {
+      const active = btn.getAttribute('data-tab') === tab;
+      btn.classList.toggle('bg-brand-accent', active);
+      btn.classList.toggle('text-slate-950', active);
+      btn.classList.toggle('text-slate-300', !active);
+      btn.classList.toggle('font-semibold', active);
+      btn.classList.toggle('shadow-sm', active);
+    });
+    if (tab === 'account') renderAccount();
+    if (tab === 'preview') renderPreview();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function setFiltersFromInputs() {
+    state.filters.q = $('filterQ').value.trim();
+    state.filters.minEarn = $('filterMin').value.trim();
+    localStorage.setItem(LS_FILTERS, JSON.stringify(state.filters));
+  }
+
+  async function handleLoginSubmit(event) {
+    event.preventDefault();
+    const token = $('loginToken').value.trim();
+    if (!token) return;
+    const errBox = $('loginError');
+    errBox.classList.add('hidden');
+    $('loginSubmitBtn').disabled = true;
+    const previous = state.token;
+    state.token = token;
+    if (!state.sessionId) state.sessionId = newSessionId();
+    try {
+      let auth;
+      try {
+        auth = await api('/api/auth');
+      } catch (err) {
+        if (!err.inUse) throw err;
+        auth = await api('/api/auth?takeover=1');
+        toast('Signed out the previous session.');
+      }
+      state.auth = auth;
+      if (auth.sessionId) {
+        state.sessionId = auth.sessionId;
+        localStorage.setItem(LS_SESSION, auth.sessionId);
+      }
+      localStorage.setItem(LS_TOKEN, token);
+      closeModal('login-modal');
+      $('loginForm').reset();
+      await refreshAll();
+      startAlertFeed();
+      switchTab('overview');
+      toast('Logged in' + (auth.label ? ' as ' + auth.label : '') + '.');
+    } catch (err) {
+      state.token = previous;
+      const data = err && err.data ? err.data : {};
+      errBox.textContent = err.inUse
+        ? 'This token is already in use on another device. Log out there first.'
+        : data.expired
+          ? 'Licence expired. Ask the admin to renew it.'
+          : data.revoked
+            ? 'This token was revoked.'
+            : (err && err.message) || 'Login failed.';
+      errBox.classList.remove('hidden');
+    } finally {
+      $('loginSubmitBtn').disabled = false;
+    }
+  }
+
+  async function logout() {
+    const token = state.token;
+    const sessionId = state.sessionId;
+    stopAlertFeed();
+    state.token = '';
+    state.sessionId = '';
+    state.auth = null;
+    state.logs = [];
+    state.top = [];
+    state.stats = {};
+    state.total = 0;
+    state.autojoin = null;
+    state.lastAutoJoin = null;
+    state.autoJoinWindow = 0;
+    state.autoJoinedOnce = false;
+    state.alertLogs = [];
+    state.alertsSeen = new Set();
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_SESSION);
+    renderAll();
+    switchTab('preview');
+    if (token && sessionId) {
+      try {
+        await fetch(apiBase() + '/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Dashboard-Token': token,
+            'X-Session-Id': sessionId,
+          },
+          body: JSON.stringify({ token, sessionId }),
+        });
+      } catch { /* best effort */ }
+    }
+    toast('Logged out.');
+  }
+
+  // Event wiring
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close')));
+  });
+  document.querySelectorAll('.nav-btn').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.getAttribute('data-tab')));
+  });
+  $('authBtn').addEventListener('click', () => {
+    if (state.auth) switchTab('account');
+    else openLogin();
+  });
+  $('loginForm').addEventListener('submit', handleLoginSubmit);
+  $('availBtn').addEventListener('click', () => { closeModal('login-modal'); openModal('promo-modal'); });
+  $('previewPromoBtn').addEventListener('click', () => openModal('promo-modal'));
+  $('refreshBtn').addEventListener('click', refreshAll);
+  $('applyBtn').addEventListener('click', () => { setFiltersFromInputs(); refreshAll(); });
+  $('resetBtn').addEventListener('click', () => {
+    $('filterQ').value = '';
+    $('filterMin').value = '';
+    setFiltersFromInputs();
+    refreshAll();
+  });
+  for (const id of ['filterQ', 'filterMin']) {
+    $(id).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { setFiltersFromInputs(); refreshAll(); }
+    });
+  }
+  $('accountRefreshBtn').addEventListener('click', async () => {
+    try {
+      const auth = await api('/api/auth');
+      state.auth = auth;
+      renderAccount();
+      toast('Token state refreshed.');
+    } catch (err) {
+      if (err.status === 401) handleAuthFailure(err);
+      else toast('Refresh failed: ' + (err && err.message ? err.message : err));
+    }
+  });
+  bindMoneyInput($('autoJoinMinEarn'));
+  $('saveAutoJoinBtn').addEventListener('click', async () => {
+    const enabled = $('autoJoinEnabled').checked;
+    const minEarn = Math.max(0, parseMoneyValue($('autoJoinMinEarn').value));
+    $('saveAutoJoinBtn').disabled = true;
+    try {
+      const data = await api('/api/autojoin/settings', {
+        method: 'POST',
+        body: JSON.stringify({ enabled, minEarn }),
+      });
+      state.autojoin = {
+        enabled: data.enabled === true,
+        minEarn: Number(data.minEarn) || 0,
+        updatedAt: Number(data.updatedAt) || Date.now(),
+      };
+      state.lastAutoJoin = null;
+      state.autoJoinWindow = 0;
+      try {
+        localStorage.removeItem(autoJoinWindowKey());
+      } catch { /* ignore */ }
+      renderAutoJoin();
+      toast('Auto Join settings saved.');
+      checkAutoJoin();
+    } catch (err) {
+      toast('Auto Join save failed: ' + (err && err.message ? err.message : err));
+    } finally {
+      $('saveAutoJoinBtn').disabled = false;
+    }
+  });
+  $('logoutBtn').addEventListener('click', logout);
+  $('autoJoinLink').addEventListener('click', (event) => {
+    const btn = event.currentTarget;
+    if (btn.dataset.busy === '1') {
+      event.preventDefault();
+      return;
+    }
+    btn.dataset.busy = '1';
+    btn.innerHTML = '<i data-lucide="loader-circle" class="w-4 h-4 mr-1.5 animate-spin"></i> Opening Roblox...';
+    if (window.lucide) lucide.createIcons();
+    setTimeout(() => {
+      if (btn.dataset.busy !== '1') return;
+      btn.dataset.busy = '0';
+      btn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4 mr-1.5"></i> Join Server';
+      if (window.lucide) lucide.createIcons();
+    }, 15000);
+  });
+  $('liveBtn').addEventListener('click', () => {
+    state.live = !state.live;
+    localStorage.setItem(LS_LIVE, state.live ? '1' : '0');
+    $('liveText').textContent = state.live ? 'Live' : 'Paused';
+    $('liveBtn').className = 'text-xs font-mono flex items-center ' + (state.live ? 'text-emerald-400' : 'text-slate-400');
+  });
+  document.addEventListener('click', (e) => {
+    const promo = e.target && e.target.closest ? e.target.closest('[data-promo]') : null;
+    if (promo) openModal('promo-modal');
+  });
+
+  // Start
+  $('liveText').textContent = state.live ? 'Live' : 'Paused';
+  $('liveBtn').className = 'text-xs font-mono flex items-center ' + (state.live ? 'text-emerald-400' : 'text-slate-400');
+  renderAll();
+
+  async function connectExisting() {
+    const hadSession = !!state.sessionId;
+    try {
+      if (!state.sessionId) state.sessionId = newSessionId();
+      let auth;
+      try {
+        auth = await api('/api/auth');
+      } catch (err) {
+        if (!err.inUse || hadSession) throw err;
+        auth = await api('/api/auth?takeover=1');
+        toast('Previous session was stale; this device took over.');
+      }
+      state.auth = auth;
+      if (auth.sessionId) {
+        state.sessionId = auth.sessionId;
+        localStorage.setItem(LS_SESSION, auth.sessionId);
+      }
+      await refreshAll();
+      startAlertFeed();
+    } catch (err) {
+      if (err.inUse) {
+        handleAuthFailure(err, 'This token is in use on another device. Log out there first.');
+      } else if (err.status === 401) {
+        handleAuthFailure(err);
+      } else if (err.sessionRequired) {
+        handleAuthFailure(err, 'Session expired. Log in again.');
+      } else {
+        toast('Load failed: ' + (err && err.message ? err.message : err));
+      }
+    }
+  }
+
+  if (state.token) {
+    connectExisting();
+  } else {
+    // Guests see the shell; no private logs are fetched without a token.
+    renderAll();
+  }
+
+  let lastActive = Date.now();
+  for (const ev of ['click', 'keydown', 'pointerdown', 'scroll', 'touchstart']) {
+    document.addEventListener(ev, () => { lastActive = Date.now(); }, { passive: true });
+  }
+  setInterval(() => {
+    const idle = Date.now() - lastActive > IDLE_MS;
+    if (state.live && state.token && !state.loading && !idle && document.visibilityState === 'visible') refreshAll();
+  }, POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.live && state.token) {
+      lastActive = Date.now();
+      refreshAll();
+      startAlertFeed();
+    }
+  });
+
+  window.addEventListener('pagehide', () => {
+    if (!state.token || !state.sessionId) return;
+    const body = JSON.stringify({ token: state.token, sessionId: state.sessionId });
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(apiBase() + '/api/auth/logout', new Blob([body], { type: 'application/json' }));
+      }
+    } catch { /* best effort */ }
+  });
+</script>
+</body>
+</html>
