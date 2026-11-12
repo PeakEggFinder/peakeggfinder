@@ -197,9 +197,9 @@
         <div class="flex items-center justify-between mb-4 gap-3">
           <div>
             <h3 class="text-base font-semibold text-white flex items-center">
-              <i data-lucide="trophy" class="w-4 h-4 text-brand-accent mr-2"></i> Best Top 10 Pet Found
+              <i data-lucide="trophy" class="w-4 h-4 text-brand-accent mr-2"></i> Best Current Spawn
             </h3>
-            <p class="text-xs text-slate-400">Highest value pet detections logged with instant join link</p>
+            <p class="text-xs text-slate-400">Highest value pets in the current 5-minute spawn</p>
           </div>
           <div class="text-right">
             <span class="text-xs font-mono bg-brand-accent/10 text-brand-accent px-2 py-1 rounded border border-brand-accent/20 whitespace-nowrap">Live Rankings</span>
@@ -404,6 +404,13 @@
       <p class="text-[10px] text-slate-500">Click Join Server once, then wait for Roblox to finish loading. Clicking again can reopen your previous server.</p>
       <button type="button" data-close="autojoin-modal" class="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
     </div>
+  </div>
+
+  <!-- BOTTOM AUTO JOIN TOGGLE -->
+  <div id="autoJoinBar" class="fixed bottom-4 left-4 z-40 hidden">
+    <button id="autoJoinBarBtn" type="button" class="px-4 py-2.5 rounded-xl font-bold text-xs bg-slate-900 border border-brand-accent/40 text-brand-accent shadow-lg">
+      Auto Join: OFF
+    </button>
   </div>
 
   <!-- PROMO MODAL -->
@@ -620,9 +627,10 @@
   }
   function directJoin(log) {
     if (log && log.directLink && /^roblox:\/\//i.test(log.directLink)) return log.directLink;
-    if (log && log.placeId && log.jobId) {
-      return 'https://www.roblox.com/games/start?placeId=' + encodeURIComponent(log.placeId)
-        + '&gameInstanceId=' + encodeURIComponent(log.jobId);
+    if (log && log.placeId) {
+      let link = 'roblox://experiences/start?placeId=' + encodeURIComponent(log.placeId);
+      if (log.jobId) link += '&gameInstanceId=' + encodeURIComponent(log.jobId);
+      return link;
     }
     return '';
   }
@@ -633,8 +641,7 @@
       return 'intent://experiences/start?placeId=' + place + '&gameInstanceId=' + job
         + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.roblox.client;end';
     }
-    // Use the Roblox web launcher for desktop. It is more reliable than the
-    // roblox:// protocol when the browser does not have a registered handler.
+    // Direct roblox:// link - do not open the Roblox website.
     return directJoin(log);
   }
   function autoJoinWindowKey() {
@@ -818,13 +825,32 @@
       handleAlertAutoJoin(log);
     }
   }
+  function autoJoinCandidate(join) {
+    if (!join || !joinTarget(join)) return;
+    const windowStart = spawnWindowStart();
+    state.lastAutoJoin = { id: join.id, at: Date.now(), pet: join.pet || 'pet' };
+    state.autoJoinWindow = windowStart;
+    try { localStorage.setItem(autoJoinWindowKey(), String(windowStart)); } catch { /* ignore */ }
+    renderAutoJoin();
+    if (!state.autoJoinedOnce) {
+      // First match after enabling: join directly once.
+      state.autoJoinedOnce = true;
+      try { localStorage.setItem(autoJoinOnceKey(), '1'); } catch { /* ignore */ }
+      directAutoJoin(join);
+    } else {
+      // Every next match is a manual prompt.
+      triggerAutoJoin(join);
+    }
+  }
+
   function handleAlertAutoJoin(a) {
     if (!state.autojoin || state.autojoin.enabled !== true) return;
-    if (!state.auth || state.auth.kind !== 'client') return;
+    if (!state.auth || (state.auth.kind !== 'client' && state.auth.kind !== 'admin')) return;
+    if (!a || !a.jobId || !a.placeId) return;
     if (num(a.earnPerSec) < num(state.autojoin.minEarn)) return;
-    // Let the Worker claim the window. It is the single source of truth when
-    // the Lua GUI and this page are open on the same token.
-    checkAutoJoin();
+    if (state.autoJoinWindow === spawnWindowStart()) return;
+    if (state.lastAutoJoin && state.lastAutoJoin.id === a.id) return;
+    autoJoinCandidate(a);
   }
   function stopAlertFeed() {
     try { if (state.alertRef) state.alertRef.off(); } catch { /* ignore */ }
@@ -890,7 +916,7 @@
       api('/api/health'),
     ]);
     let autojoin = null;
-    if (auth && auth.kind === 'client') {
+    if (auth && (auth.kind === 'client' || auth.kind === 'admin')) {
       try { autojoin = await api('/api/autojoin/settings'); } catch { autojoin = null; }
     }
     return {
@@ -915,7 +941,7 @@
       state.spawnStart = windowStart;
       const snap = await loadSnapshot(windowStart);
       state.auth = snap.auth;
-      if (state.auth && state.auth.kind === 'client') {
+      if (state.auth && (state.auth.kind === 'client' || state.auth.kind === 'admin')) {
         state.autojoin = snap.autojoin || state.autojoin;
         loadAutoJoinWindow();
       } else {
@@ -929,24 +955,6 @@
       state.top = Array.isArray(snap.top) ? snap.top : [];
       state.topAllTime = false;
       state.topMixed = false;
-      if (state.auth && state.top.length < 10) {
-        try {
-          const before = state.top.length;
-          const best = await api('/api/pets?sort=earn&limit=10');
-          const ids = new Set(state.top.map((p) => String(p.id)));
-          for (const pet of (best.logs || [])) {
-            if (state.top.length >= 10) break;
-            if (!ids.has(String(pet.id))) {
-              ids.add(String(pet.id));
-              state.top.push(pet);
-            }
-          }
-          if (state.top.length > before) {
-            if (before > 0) state.topMixed = true;
-            else state.topAllTime = true;
-          }
-        } catch { /* keep the empty state */ }
-      }
       state.health = {
         botStatus: snap.botStatus,
         botStatusUpdatedAt: snap.botStatusUpdatedAt,
@@ -1019,11 +1027,11 @@
 
   function renderTop10() {
     const box = $('top10List');
-    $('spawnWindow').textContent = state.topAllTime
-      ? 'All-time best'
-      : (state.topMixed ? 'Current + all-time best' : (state.spawnStart ? spawnWindowLabel(state.spawnStart) : ''));
+    $('spawnWindow').textContent = state.spawnStart
+      ? 'Current spawn • ' + spawnWindowLabel(state.spawnStart)
+      : 'Current spawn';
     if (!state.top.length) {
-      box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged yet.</div>';
+      box.innerHTML = '<div class="md:col-span-2 text-center text-slate-500 text-sm py-8">No pets logged in this spawn yet.</div>';
       return;
     }
     box.innerHTML = state.top.map((pet, i) => {
@@ -1198,9 +1206,13 @@
   function renderAutoJoin() {
     const auth = state.auth;
     const card = $('autoJoinCard');
-    const isClient = !!(auth && auth.kind === 'client');
-    card.hidden = !isClient;
-    if (!isClient) return;
+    const isAuthed = !!(auth && (auth.kind === 'client' || auth.kind === 'admin'));
+    card.hidden = !isAuthed;
+    if (!isAuthed) {
+      const bar = $('autoJoinBar');
+      if (bar) bar.hidden = true;
+      return;
+    }
 
     const settings = state.autojoin || { enabled: false, minEarn: 3000000000, updatedAt: 0 };
     $('autoJoinEnabled').checked = settings.enabled === true;
@@ -1212,11 +1224,21 @@
     $('autoJoinLast').textContent = last
       ? 'Last match: ' + (last.pet || 'pet') + ' • ' + utcStamp(last.at)
       : '';
+    const bar = $('autoJoinBar');
+    const barBtn = $('autoJoinBarBtn');
+    if (bar && barBtn) {
+      bar.hidden = false;
+      const on = settings.enabled === true;
+      barBtn.textContent = 'Auto Join: ' + (on ? 'ON' : 'OFF');
+      barBtn.className = on
+        ? 'px-4 py-2.5 rounded-xl font-bold text-xs bg-brand-accent text-slate-950 shadow-lg'
+        : 'px-4 py-2.5 rounded-xl font-bold text-xs bg-slate-900 border border-brand-accent/40 text-brand-accent shadow-lg';
+    }
   }
 
   async function checkAutoJoin() {
     if (!state.autojoin || !state.autojoin.enabled) return;
-    if (!state.auth || state.auth.kind !== 'client') return;
+    if (!state.auth || (state.auth.kind !== 'client' && state.auth.kind !== 'admin')) return;
     try {
       const data = await api('/api/autojoin/next');
       if (!data || !data.join) return;
@@ -1224,18 +1246,8 @@
       const windowStart = Number(data.windowStart) || 0;
       if (windowStart && state.autoJoinWindow === windowStart) return;
       if (state.lastAutoJoin && state.lastAutoJoin.id === join.id) return;
-      state.lastAutoJoin = { id: join.id, at: Date.now(), pet: join.pet || 'pet' };
-      state.autoJoinWindow = windowStart;
-      if (windowStart) localStorage.setItem(autoJoinWindowKey(), String(windowStart));
-      renderAutoJoin();
-      const firstJoin = (typeof data.first === 'boolean') ? data.first : !state.autoJoinedOnce;
-      if (firstJoin) {
-        state.autoJoinedOnce = true;
-        localStorage.setItem(autoJoinOnceKey(), '1');
-        directAutoJoin(join);
-      } else {
-        triggerAutoJoin(join);
-      }
+      if (num(join.earnPerSec) < num(state.autojoin.minEarn)) return;
+      autoJoinCandidate(join);
     } catch {
       // Auto Join is best-effort; the normal dashboard still works.
     }
@@ -1435,8 +1447,44 @@
     }
   });
   bindMoneyInput($('autoJoinMinEarn'));
+  $('autoJoinBarBtn').addEventListener('click', async () => {
+    if (!state.auth || (state.auth.kind !== 'client' && state.auth.kind !== 'admin')) {
+      toast('Log in first.');
+      return;
+    }
+    const current = state.autojoin && state.autojoin.enabled === true;
+    const next = !current;
+    if (next) {
+      state.autoJoinedOnce = false;
+      try { localStorage.removeItem(autoJoinOnceKey()); } catch { /* ignore */ }
+    }
+    const minEarn = (state.autojoin && Number(state.autojoin.minEarn)) || 3000000000;
+    $('autoJoinBarBtn').disabled = true;
+    try {
+      const data = await api('/api/autojoin/settings', {
+        method: 'POST',
+        body: JSON.stringify({ enabled: next, minEarn }),
+      });
+      state.autojoin = {
+        enabled: data.enabled === true,
+        minEarn: Number(data.minEarn) || minEarn,
+        updatedAt: Number(data.updatedAt) || Date.now(),
+      };
+      state.lastAutoJoin = null;
+      state.autoJoinWindow = 0;
+      try { localStorage.removeItem(autoJoinWindowKey()); } catch { /* ignore */ }
+      renderAutoJoin();
+      toast('Auto Join ' + (next ? 'ON' : 'OFF'));
+      if (next) checkAutoJoin();
+    } catch (err) {
+      toast('Auto Join save failed: ' + (err && err.message ? err.message : err));
+    } finally {
+      $('autoJoinBarBtn').disabled = false;
+    }
+  });
   $('saveAutoJoinBtn').addEventListener('click', async () => {
     const enabled = $('autoJoinEnabled').checked;
+    const wasEnabled = !!(state.autojoin && state.autojoin.enabled === true);
     const minEarn = Math.max(0, parseMoneyValue($('autoJoinMinEarn').value));
     $('saveAutoJoinBtn').disabled = true;
     try {
@@ -1451,6 +1499,10 @@
       };
       state.lastAutoJoin = null;
       state.autoJoinWindow = 0;
+      if (enabled && !wasEnabled) {
+        state.autoJoinedOnce = false;
+        try { localStorage.removeItem(autoJoinOnceKey()); } catch { /* ignore */ }
+      }
       try {
         localStorage.removeItem(autoJoinWindowKey());
       } catch { /* ignore */ }
