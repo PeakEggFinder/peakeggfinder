@@ -648,14 +648,18 @@
     return '';
   }
   function joinTarget(log) {
+    const place = encodeURIComponent(log.placeId || '');
+    const query = 'placeId=' + place
+      + (log.jobId ? '&gameInstanceId=' + encodeURIComponent(log.jobId) : '');
     if (/Android/i.test(navigator.userAgent)) {
-      const place = encodeURIComponent(log.placeId || '');
-      const job = encodeURIComponent(log.jobId || '');
-      return 'intent://experiences/start?placeId=' + place + '&gameInstanceId=' + job
-        + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;package=com.roblox.client;end';
+      // No package= so any app that owns roblox:// (Roblox or a clone) can take
+      // it; the browser falls back to the web join page if none is installed.
+      const web = encodeURIComponent('https://www.roblox.com/games/start?' + query);
+      return 'intent://experiences/start?' + query
+        + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=' + web + ';end';
     }
-    // Direct roblox:// link - do not open the Roblox website.
-    return directJoin(log);
+    // Desktop: direct deep link, never the website.
+    return 'roblox://experiences/start?' + query;
   }
   function autoJoinWindowKey() {
     return 'eggFinder.autoJoinWindow.' + (state.token || '');
