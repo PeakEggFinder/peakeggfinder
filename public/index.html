@@ -625,6 +625,16 @@
     if (r === 'RARE' || r === 'EPIC' || r === 'UNCOMMON') return 'rarity-rare';
     return 'rarity-common';
   }
+  let lastJoinAttempt = 0;
+  function openJoin(link) {
+    if (!link) return;
+    const now = Date.now();
+    if (now - lastJoinAttempt < 5000) return;
+    lastJoinAttempt = now;
+    try {
+      window.location.href = link;
+    } catch { /* ignore */ }
+  }
   function directJoin(log) {
     if (log && log.directLink && /^roblox:\/\//i.test(log.directLink)) return log.directLink;
     if (log && log.placeId) {
@@ -1021,8 +1031,7 @@
       ? Number(state.health.activeClients).toLocaleString()
       : '—';
     $('statPets').textContent = total.toLocaleString();
-    $('statPetsSub').textContent = 'Last 24h: ' + num(stats.last24h).toLocaleString()
-      + (num(stats.bestEarn) > 0 ? ' • Best: ' + fmtMoney(stats.bestEarn) : '');
+    $('statPetsSub').textContent = 'Last 24h: ' + num(stats.last24h).toLocaleString();
   }
 
   function renderTop10() {
@@ -1075,7 +1084,7 @@
         const pet = state.top.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!pet) return;
         const link = joinTarget(pet);
-        if (link) window.location.href = link;
+        openJoin(link);
       });
     });
   }
@@ -1130,7 +1139,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.location.href = link;
+        openJoin(link);
       });
     });
     $('logsCount').textContent = logs.length + ' shown • ' + state.total.toLocaleString() + ' matching log(s)';
@@ -1176,7 +1185,7 @@
         const log = state.logs.find((item) => String(item.id) === btn.getAttribute('data-join'));
         if (!log) return;
         const link = joinTarget(log);
-        if (link) window.location.href = link;
+        openJoin(link);
       });
     });
   }
@@ -1257,11 +1266,7 @@
     const link = joinTarget(join);
     if (!link) return;
     toast('Auto joining ' + (join.pet || 'pet') + '...');
-    try {
-      window.location.href = link;
-    } catch {
-      // If the browser blocks the protocol, the next spawn will still prompt.
-    }
+    openJoin(link);
   }
 
   function triggerAutoJoin(join) {
