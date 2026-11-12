@@ -632,7 +632,7 @@
   function openJoin(link) {
     if (!link) return;
     const now = Date.now();
-    if (now - lastJoinAttempt < 5000) return;
+    if (now - lastJoinAttempt < 2500) return;
     lastJoinAttempt = now;
     try {
       window.location.href = link;
