@@ -821,6 +821,18 @@
     return [log.pet, log.rarity, log.username, log.mutation, log.device, log.botId]
       .some((v) => String(v || '').toLowerCase().indexOf(q) !== -1);
   }
+  function alertAllowed(a) {
+    const auth = state.auth;
+    if (!auth) return false;
+    if (auth.kind === 'admin') return true;
+    // Clients only ever see alerts from the usernames assigned to their token.
+    const names = String(auth.botUsername || '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (!names.length) return false;
+    return names.indexOf(String((a && a.username) || '').toLowerCase()) !== -1;
+  }
   function mergeAlertLogs(logs) {
     const out = logs.slice();
     const ids = new Set(out.map((l) => String(l.id)));
@@ -834,6 +846,7 @@
   }
   function acceptAlert(a) {
     if (!a || typeof a !== 'object' || !a.pet) return;
+    if (!alertAllowed(a)) return;
     const id = alertKey(a);
     if (state.alertsSeen.has(id)) return;
     state.alertsSeen.add(id);
