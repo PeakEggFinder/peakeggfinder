@@ -59,6 +59,22 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
+  <!-- Private access gate: nothing is rendered until a token is accepted. -->
+  <div id="loginGate" class="fixed inset-0 z-[999] bg-[#050505] flex items-center justify-center px-4">
+    <div class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-base font-extrabold tracking-tight text-white">EGG FINDER</span>
+        <span class="text-[10px] bg-brand-accent/20 text-brand-accent px-2 py-0.5 rounded font-semibold border border-brand-accent/30">PRIVATE</span>
+      </div>
+      <p class="text-xs text-slate-400 mb-5">Enter your access token to open the dashboard.</p>
+      <form id="gateForm" class="space-y-3">
+        <input id="gateToken" type="password" autocomplete="off" placeholder="eggcli_..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-accent" />
+        <div id="gateError" class="text-[11px] text-red-400 min-h-[14px]"></div>
+        <button id="gateSubmit" type="submit" class="w-full bg-brand-accent hover:bg-yellow-400 text-slate-950 font-bold text-sm rounded-xl py-2.5 transition">Open Dashboard</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Top Navigation Bar -->
   <header class="bg-[#080705]/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -764,8 +780,18 @@
     setTimeout(() => $('loginToken').focus(), 50);
   }
 
-  function handleAuthFailure(err, forcedMessage) {
-    const data = err && err.data ? err.data : {};
+  function showGate(message) {
+    const gate = $('loginGate');
+    if (!gate) return;
+    gate.classList.remove('hidden');
+    if (message) $('gateError').textContent = message;
+  }
+  function hideGate() {
+    const gate = $('loginGate');
+    if (gate) gate.classList.add('hidden');
+  }
+
+  function handleAuthFailure(err, forcedMessage) {    const data = err && err.data ? err.data : {};
     stopAlertFeed();
     state.auth = null;
     state.logs = [];
@@ -792,6 +818,7 @@
         ? 'This token was revoked.'
         : (err && err.message) || 'Please log in again.');
     openLogin(message);
+    showGate(message);
   }
 
   function filterParams(extra = {}) {
@@ -1361,13 +1388,13 @@
     localStorage.setItem(LS_FILTERS, JSON.stringify(state.filters));
   }
 
-  async function handleLoginSubmit(event) {
-    event.preventDefault();
-    const token = $('loginToken').value.trim();
-    if (!token) return;
-    const errBox = $('loginError');
-    errBox.classList.add('hidden');
-    $('loginSubmitBtn').disabled = true;
+  async function doLogin(token, errBox, submitBtn) {
+    if (!token) return false;
+    if (errBox) {
+      errBox.textContent = '';
+      errBox.classList.add('hidden');
+    }
+    if (submitBtn) submitBtn.disabled = true;
     const previous = state.token;
     state.token = token;
     if (!state.sessionId) state.sessionId = newSessionId();
@@ -1388,10 +1415,12 @@
       localStorage.setItem(LS_TOKEN, token);
       closeModal('login-modal');
       $('loginForm').reset();
+      hideGate();
       await refreshAll();
       startAlertFeed();
       switchTab('overview');
       toast('Logged in' + (auth.label ? ' as ' + auth.label : '') + '.');
+      return true;
     } catch (err) {
       state.token = previous;
       const data = err && err.data ? err.data : {};
@@ -1403,9 +1432,15 @@
             ? 'This token was revoked.'
             : (err && err.message) || 'Login failed.';
       errBox.classList.remove('hidden');
+      return false;
     } finally {
-      $('loginSubmitBtn').disabled = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
+  }
+
+  async function handleLoginSubmit(event) {
+    event.preventDefault();
+    await doLogin($('loginToken').value.trim(), $('loginError'), $('loginSubmitBtn'));
   }
 
   async function logout() {
@@ -1432,6 +1467,7 @@
     localStorage.removeItem(LS_SESSION);
     renderAll();
     switchTab('preview');
+    showGate();
     if (token && sessionId) {
       try {
         await fetch(apiBase() + '/api/auth/logout', {
@@ -1460,6 +1496,11 @@
     else openLogin();
   });
   $('loginForm').addEventListener('submit', handleLoginSubmit);
+  $('gateForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const ok = await doLogin($('gateToken').value.trim(), $('gateError'), $('gateSubmit'));
+    if (ok) $('gateToken').value = '';
+  });
   $('availBtn').addEventListener('click', () => { closeModal('login-modal'); openModal('promo-modal'); });
   $('previewPromoBtn').addEventListener('click', () => openModal('promo-modal'));
   $('refreshBtn').addEventListener('click', refreshAll);
@@ -1636,10 +1677,12 @@
   }
 
   if (state.token) {
+    hideGate();
     connectExisting();
   } else {
-    // Guests see the shell; no private logs are fetched without a token.
+    // Nothing is shown until a token is accepted.
     renderAll();
+    showGate();
   }
 
   let lastActive = Date.now();
