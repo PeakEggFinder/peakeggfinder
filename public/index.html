@@ -629,11 +629,18 @@
   function openJoin(link) {
     if (!link) return;
     const now = Date.now();
-    if (now - lastJoinAttempt < 2500) return;
+    if (now - lastJoinAttempt < 1500) {
+      // Never drop a click silently: that looked like "the button is broken".
+      toast('Give it a second, then tap Join again.');
+      return;
+    }
     lastJoinAttempt = now;
+    toast('Opening Roblox…');
     try {
       window.location.href = link;
-    } catch { /* ignore */ }
+    } catch {
+      toast('Could not open Roblox. Copy the link and open it in your browser.');
+    }
   }
   function directJoin(log) {
     if (log && log.directLink && /^roblox:\/\//i.test(log.directLink)) return log.directLink;
@@ -649,11 +656,10 @@
     const query = 'placeId=' + place
       + (log.jobId ? '&gameInstanceId=' + encodeURIComponent(log.jobId) : '');
     if (/Android/i.test(navigator.userAgent)) {
-      // No package= so any app that owns roblox:// (Roblox or a clone) can take
-      // it; the browser falls back to the web join page if none is installed.
-      const web = encodeURIComponent('https://www.roblox.com/games/start?' + query);
-      return 'intent://experiences/start?' + query
-        + '#Intent;scheme=roblox;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=' + web + ';end';
+      // Android App Links: the Roblox app claims roblox.com, so this opens the
+      // game directly. intent:// is ignored by several in-app browsers, which
+      // is why the Join button appeared dead on phones.
+      return 'https://www.roblox.com/games/start?' + query;
     }
     // Desktop: direct deep link, never the website.
     return 'roblox://experiences/start?' + query;
