@@ -662,28 +662,16 @@
       return;
     }
     lastJoinAttempt = now;
+    state.lastJoinClickAt = now;
     toast('Opening Roblox…');
 
-    // Android: hand off straight to the Roblox app. If the browser refuses the
-    // custom scheme and we are still on the page, fall back to the web link.
-    if (/Android/i.test(navigator.userAgent) && /^roblox:\/\//i.test(link)) {
-      let left = false;
-      const onHide = () => { if (document.hidden) left = true; };
-      document.addEventListener('visibilitychange', onHide);
-      try { window.location.href = link; } catch { /* fall through to timer */ }
-      setTimeout(() => {
-        document.removeEventListener('visibilitychange', onHide);
-        if (!left && !document.hidden) {
-          window.location.href = webFallbackFor(link);
-        }
-      }, 1200);
-      return;
-    }
-
+    // Android: hand off straight to the Roblox app. No automatic second
+    // attempt: some browsers keep the page "visible" after handing off, so a
+    // timer-based fallback opened Roblox twice.
     try {
       window.location.href = link;
     } catch {
-      toast('Could not open Roblox. Copy the link and open it in your browser.');
+      toast('Could not open Roblox. Tap Join once more, or open it in Chrome.');
     }
   }
   function directJoin(log) {
@@ -914,6 +902,11 @@
   }
   function autoJoinCandidate(join) {
     if (!join || !joinTarget(join)) return;
+    // Never auto-join on top of a click the user just made (or the previous
+    // auto join). Without this, a fresh alert arriving a few seconds after a
+    // manual Join opened Roblox a second time.
+    if (Date.now() - (state.lastJoinClickAt || 0) < 20000) return;
+    if (Date.now() - lastJoinAttempt < 20000) return;
     const windowStart = spawnWindowStart();
     state.lastAutoJoin = { id: join.id, at: Date.now(), pet: join.pet || 'pet' };
     state.autoJoinWindow = windowStart;
@@ -1325,6 +1318,8 @@
   async function checkAutoJoin() {
     if (!state.autojoin || !state.autojoin.enabled) return;
     if (!state.auth || (state.auth.kind !== 'client' && state.auth.kind !== 'admin')) return;
+    // Do not auto-join on top of a manual click (or the previous auto join).
+    if (Date.now() - lastJoinAttempt < 15000) return;
     try {
       const data = await api('/api/autojoin/next');
       if (!data || !data.join) return;
