@@ -491,8 +491,8 @@
   // allowed by firebase-tracker-rules.json, so the page needs no Firebase auth.
   const ALERTS_DB_URL = 'https://robloxtracker-90ba3-default-rtdb.asia-southeast1.firebasedatabase.app';
   const ALERTS_PATH = 'alerts';
-  const ALERT_FRESH_MS = 30000;     // act on pushes younger than 30 seconds
-  const POLL_MS = 5000;             // list refresh; Firebase alerts are still live
+  const ALERT_FRESH_MS = 120000;    // act on pushes younger than 2 minutes
+  const POLL_MS = 180000;           // slow fallback; Firebase alerts handle live updates
   const IDLE_MS = 15 * 60000;       // stop polling an unattended tab
 
   const state = {
